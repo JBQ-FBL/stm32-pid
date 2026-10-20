@@ -29,16 +29,32 @@ STM32F103C8T6 + TB6612 + JGB37-520 编码器电机，**5 ms 控制周期**做速
 ### 2.1 电源与共地（不共地 = 一切诡异现象的源头）
 
 ```
-3×18650 (11.1V) ──┬── TB6612 VM        ← 只有电机功率走这里
-                  └── GND ─┬── TB6612 GND ─┬── 开发板 GND ─┬── CH340 GND
-                                    （所有 GND 必须连成一点）
-ST-Link 3.3V ── 开发板 3.3V ──┬── TB6612 VCC（逻辑电源）
-                              └── 编码器 蓝线（霍尔电源）
+ 电池 + ── 开关 ────────────────► TB6612 VM    ← 11.1 V 只走这一根线，不上面包板
+ 电池 − ──┐
+          │
+ ┌────────┴──── 面包板「功率地段」（红/蓝轨左半边）────────┐
+ │   电池 −          TB6612 GND                          │
+ └────────────────────────┬───────────────────────────────┘
+                          │ ★ 只在这一点用短粗线相连（星点）
+ ┌────────────────────────┴── 面包板「逻辑地段」（右半边）──┐
+ │ 开发板 GND  ST-Link GND  CH340 GND  OLED GND  编码器黑线 │
+ └──────────────────────────────────────────────────────────┘
+
+ 开发板 3.3V ──┬── TB6612 VCC        ← 三条都吃这一路（合计 60~80 mA）
+               ├── 编码器 蓝线
+               └── OLED VCC
 ```
 
 - 开发板由 **ST-Link 的 3.3 V** 供电；**不要**把电池接到开发板 5V/3.3V。
-- TB6612 `VM` 绝对最大 15 V → **3S 满电 12.6 V 可以，4S（16.8 V）绝对不行**。
-- 逻辑 `VCC` 接 3.3 V（芯片支持 2.7~5.5 V），这样和 MCU 同电平。**VCC 绝不能接 11.1 V**。
+  ⚠️ **板子的 USB 和 ST-Link 3V3 二选一**：3.3 V 排针是直连 MCU 的（不经 AMS1117），两个源同时接会互相倒灌。
+- **11.1 V 不上面包板**：面包板上常有 3.3 V 器件，一根错跳线就烧 MCU / OLED / 霍尔。电池正 → 开关 → `VM` 一根线直连。
+- **功率地与逻辑地分段、只在一点相连**：电机回流（1~3 A）只能走「电池− ↔ TB6612 GND」那段，不许穿过逻辑地段，否则地弹直接进编码器 A/B。
+  很多人以为两条蓝轨是通的，但 **830 孔面包板的电源轨中间通常断开** —— 先用万用表通断档量一下。
+- **编码器黑线接逻辑地段靠近 MCU 那一头**，别和 TB6612 GND 共用一个孔；电机那三段线用短粗线、插到底（堵转 1~3 A，触点会热）。
+- TB6612 `VM` 操作范围 **2.5~13.5 V**（绝对最大 15 V）→ **3S 满电 12.6 V 可以，4S（16.8 V）绝对不行**；余量只有 0.9 V，`VM`–`GND` 就近并 **100 µF + 100 nF**。
+- 逻辑 `VCC` 接 3.3 V（芯片 2.7~5.5 V，`VIH` 只要 2.31 V），和 MCU 同电平。**VCC 绝不能接 11.1 V**。
+- 3.3 V 这一路总负载约 **60~80 mA**（MCU 30~40 + OLED 10~20 + 霍尔 10~20），ST-Link 3V3 余量不大；
+  全开时用万用表量开发板 3.3 V 排针，**低于 3.2 V 就是掉压**（症状：OLED 花屏、测速乱跳）。
 
 ### 2.2 TB6612（HW-048，16 脚）
 
@@ -69,40 +85,102 @@ ST-Link 3.3V ── 开发板 3.3V ──┬── TB6612 VCC（逻辑电源）
 
 这 6 根在同一个 PH2.0 插头上，**插之前逐根对一遍**。12 V 电机脉冲约 7.3 kHz，杜邦线要短。
 
-### 2.4 STM32 引脚分配（已核对无冲突）
+### 2.4 CubeMX 配置（按左边栏分类，照这个顺序点）
 
-| 引脚 | 功能 | CubeMX 设置 | 状态 |
-|---|---|---|---|
-| **PA8** | 电机 PWM | TIM1_CH1，AF Push Pull，Very High，Label `MOTOR_PWM` | ⬜ |
-| **PA4 / PA5** | 方向 | GPIO_Output，PP，No pull，**Low**，Label `AIN1` / `AIN2` | ⬜ |
-| **PA6 / PA7** | 编码器 A/B | TIM3_CH1/CH2，Encoder Mode，Pull-up，Label `ENC_A` / `ENC_B` | ⬜ |
-| **PA9 / PA10** | USART1 TX/RX | Asynchronous，115200 8N1，AF PP / Input | ⬜ |
-| **PB6 / PB7** | OLED SCL/SDA | GPIO_Output，**Open Drain**，**High**，Label `OLED_SCL` / `OLED_SDA` | ⬜ |
-| **PC13** | 板载 LED | GPIO_Output，PP，**High = 灭**（低电平点亮），Label `LED` | ⬜ |
-| **PA13 / PA14** | SWD | SYS → Debug = **Serial Wire** | ✅ |
-| **PD0 / PD1** | 8 MHz 晶振 | RCC → HSE = Crystal/Ceramic Resonator | ✅ |
+> 等宽字体的字就是 CubeMX 界面上**字段名 / 选项的原文**，按这个名字找就能对上。
 
-冲突已避开：TIM1 只用 CH1（PA8），所以 PA9 让给 USART1；编码器用 TIM3 不用 TIM1；
-PB6/PB7 只当普通 GPIO（软件 I2C），TIM4 不使用。
+**① System Core**
+
+**GPIO**（System Core → GPIO → 点引脚，右侧面板就是下面这 5 项）⬜
+
+| 引脚 | 用途 | `GPIO output level` | `GPIO mode` | `GPIO Pull-up/Pull-down` | `Maximum output speed` | `User Label` |
+|---|---|---|---|---|---|---|
+| **PA4** | 方向 AIN1 | `Low` | `Output Push Pull` | `No pull-up and no pull-down` | `High` | `AIN1` |
+| **PA5** | 方向 AIN2 | `Low` | `Output Push Pull` | `No pull-up and no pull-down` | `High` | `AIN2` |
+| **PB8** | OLED 时钟 | `High` | `Output Open Drain` | `No pull-up and no pull-down` | `High` | `OLED_SCL` |
+| **PB9** | OLED 数据 | `High` | `Output Open Drain` | `No pull-up and no pull-down` | `High` | `OLED_SDA` |
+| **PC13** | 板载 LED | `High`（= 灭）| `Output Push Pull` | `No pull-up and no pull-down` | `Low` | `LED` |
+
+- 为什么低电平亮：PC13 硬件是 LED 阳极接 3.3 V、阴极接 PC13，所以 `Low` = 点亮。
+- PB8/PB9 也可以**完全不配**（驱动会自己 init 成开漏），但配了就必须是 `Output Open Drain`，不能推挽。
+
+**NVIC**（System Core → NVIC，在列表里找 `TIM2 global interrupt`）⬜
+
+- `TIM2 global interrupt` = ☑ 勾上；`Preemption Priority` = **1**，`Sub Priority` = **0**
+- 其余保持默认：SysTick = 15；**USART1 的全局中断不勾**（串口发送在主循环，不在中断里等）
+- 为什么：控制中断必须能抢占一切，否则 dt 会被拉长，PID 的积分/微分全歪
+
+**RCC**（System Core → RCC）✅
+
+- `High Speed Clock (HSE)` = `Crystal/Ceramic Resonator` → PD0/PD1 自动变成 `OSC_IN` / `OSC_OUT`
+
+**SYS**（System Core → SYS）✅
+
+- `Debug` = `Serial Wire`（⚠️ 选 `Disable` 会把 SWD/JTAG 全关掉，程序一跑芯片就连不上，只能改 BOOT0 救砖）
+- `Timebase Source` 保持 `SysTick`
+
+**② Timers**
+
+**TIM1 → PA8（电机 PWM，20 kHz）** ⬜
+
+- `Timers → TIM1 → Channel1` 选 `PWM Generation CH1`
+- `Parameter Settings`：`Prescaler` = **0**、`Counter Mode` = `Up`、`Counter Period (ARR)` = **3599**、`auto-reload preload` = `Enable`（其余默认）
+- `PWM Generation Channel 1`：`Mode` = `PWM mode 1`、`Pulse` = **0**、`Output compare preload` = `Enable`、`CH Polarity` = `High`
+- 引脚 PA8 自动变成 `AF Push Pull` / `Very High`；`User Label` 填 `MOTOR_PWM`
+- 为什么：72 MHz ÷ (3599+1) = **20 kHz**；`Pulse` 就是占空比（0 = 输出全低）
+
+**TIM2 → 不占引脚（5 ms 控制时基）** ⬜
+
+- 四个通道全部 `Disable`（不用它的引脚，只用它的更新事件）
+- `Parameter Settings`：`Prescaler` = **7199**、`Counter Period (ARR)` = **49**（其余默认）
+- `NVIC Settings` 页签：`TIM2 global interrupt` ☑
+- 为什么：72 MHz ÷ 7200 = 10 kHz，数 **50** 个计数 = **5 ms**
+
+**TIM3 → PA6 / PA7（编码器，4 倍频）** ⬜
+
+- `Timers → TIM3 → Combined Channels` 选 `Encoder Mode`
+- `Parameter Settings`：`Encoder Mode` = `Encoder Mode TI1 and TI2`、`Prescaler` = **0**、`Counter Period` 保持 **65535**（满量程，软件用 `int16_t` 差值处理回绕）
+- `IC1 Filter` = **6**、`IC2 Filter` = **6**、`IC1 Polarity` = `Rising Edge`、`IC2 Polarity` = `Rising Edge`
+- 引脚 PA6 / PA7 自动变成输入并带 `Pull-up`；`User Label` 填 `ENC_A` / `ENC_B`
+- 为什么：`TI1 and TI2` = A/B 双相双沿 → 每圈计数 ×4；滤波 6 是去掉 7.3 kHz 脉冲上的毛刺
+
+**③ Connectivity**
+
+**USART1 → PA9 / PA10（115200 8N1）** ⬜
+
+- `Connectivity → USART1 → Mode` = `Asynchronous`
+- `Parameter Settings`：`Baud Rate` = **115200** Bits/s、`Word Length` = `8 Bits`、`Parity` = `None`、`Stop Bits` = `1`、`Flow Control` = `None`（`Data Direction` 保持 `Receive and Transmit`）
+- `GPIO Settings`：PA9 = `USART1_TX`（`AF Push Pull` / `Very High`）、PA10 = `USART1_RX`（`Input`）
+- `NVIC Settings`：**一个中断都不勾**（发送和解析都放主循环）
+
+**注**
+
+- **冲突已避开**：TIM1 只用 CH1（PA8）→ PA9/PA10 让给 USART1；编码器用 TIM3 不用 TIM1；PWM 与 USART1 不抢脚。
+- **PB6 / PB7 不配**（硬件 I²C1 不用，空着备用）；PB8/PB9 当普通 GPIO 做软件 I²C（TIM4 没用到）。
+- **为什么 OLED 用 PB8/PB9 而不是 PB6/PB7（硬件 I²C1）**：驱动母本 `oled-ssd1306` 默认就是这两个脚，`oled.h` 一个宏都不用改；F103 的硬件 I²C 还有著名的总线锁死勘误，软件模拟更稳。真要换脚就改 `oled.h` 里 **6 个宏**（4 个引脚 + 2 个端口时钟）。
+- **OLED 接线（4 针）**：`VCC → 3.3V`、`GND → GND`、`SCL → PB8`、`SDA → PB9`。SCL/SDA **不交叉**；排针上 `B9 B8 B7 B6` 连着四个孔，但 **B7/B6 是普通 GPIO，既不供电也不接地**。
 
 ---
 
-## 3. CubeMX 配置（`Pid.ioc`）
+## 3. Clock Configuration + Project Manager
 
-| 外设 | 模式 | 参数 | 状态 |
-|---|---|---|---|
-| 时钟 | HSE 8 MHz → PLL ×9 → **72 MHz** | AHB /1，APB1 /2（36 MHz），APB2 /1（72 MHz） | ✅ |
-| SYS | Debug = **Serial Wire** | ⚠️ 选 Disable 会把芯片锁死（只能改 BOOT0 救砖） | ✅ |
-| TIM1 | Channel1 = PWM Generation CH1 | PSC = **0**，ARR = **3599** → **20 kHz**；Pulse = 0 | ⬜ |
-| TIM3 | Combined Channels = **Encoder Mode** | TI1 and TI2（4 倍频），IC1/IC2 Filter = **6**，Polarity Rising，PSC = 0 | ⬜ |
-| TIM2 | 时基，不占引脚 | PSC = **7199**，ARR = **49** → **5 ms**；勾 Update interrupt | ⬜ |
-| NVIC | TIM2 抢占优先级 = **1** | SysTick 保持 15；USART1 中断先不开 | ⬜ |
-| USART1 | Asynchronous | 115200 / 8 / None / 1，无流控 | ⬜ |
-| GPIO | 见 §2.4 | PA4/PA5、PB6/PB7、PC13 | ⬜ |
-| 工程 | Toolchain = **CMake**，Name = `Pid` | 位置 `/home/niko/stm32/PID/Pid` | ✅ |
+**时钟树**（Clock Configuration 页签）：HSE 8 MHz → PLL ×9 → **SYSCLK 72 MHz**；AHB /1；APB1 /2 = 36 MHz（**定时器 ×2 = 72 MHz**）；APB2 /1 = 72 MHz。
+（F103 的 APB 分频器对定时器有 ×2 补偿，所以 TIM1/TIM2/TIM3 都按 72 MHz 算。）
 
-注释写着 `USER CODE BEGIN/END` 的区块以外不要手改 —— 重新生成会被覆盖。
-**工程名别改**：`Pid.elf` 被 `.vscode/launch.json` 和烧录脚本引用，改名要三处一起改。
+| 项 | 值 |
+|---|---|
+| 工程名 | `Pid` —— **别改**：`Pid.elf` 被 `.vscode/launch.json` 和烧录脚本引用，改名要三处一起改 |
+| Toolchain | **CMake** |
+| 位置 | `/home/niko/stm32/PID/Pid` |
+
+**四个换算**（答辩时用得上）
+
+- PWM：72 MHz / (3599+1) = **20 kHz**；占空比统一用千分比 → `CCR = ‰ × 3600 / 1000`，限幅 ±900‰ → CCR ≤ 3240
+- 5 ms：72 MHz / 7200 = 10 kHz，每 50 个计数 = **5 ms**；50 ms 指标下有 10 个采样点
+- 编码器：11 PPR × 4 × 减速比 30 = **1320 计数/圈**（待标定）；`rpm = Δcounts × 60/(dt×1320)`，dt=5 ms 时 = **Δcounts × 9.09**
+- 串口：115200 8N1 = 11 520 B/s；VOFA+ JustFloat 一帧 16 B（3×float + 4 B 尾），100 Hz 只占 **14%** 带宽
+
+`USER CODE BEGIN/END` 以外的区块不要手改 —— 重新生成会被覆盖。
 
 ---
 
