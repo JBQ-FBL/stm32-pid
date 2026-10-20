@@ -108,7 +108,7 @@ int main(void)
   Vofa_Init(UART_Link_Write);    /* VOFA 的输出接到串口 */
   SpeedLoop_Start();             /* PWM 起振 + TIM2 的 5 ms 心跳 */
 
-  UART_Link_Printf("\r\nready. S200 / S-100 / X / V(vofa) / A / ?\r\n");
+  UART_Link_Printf("\r\nready v4. S200 / S-100 / X / V(vofa) / A / ?\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -144,6 +144,18 @@ int main(void)
     }
 
     SpeedLoop_GetTelemetry(&tel);
+
+    /* 目标一变就回显：终端里能立刻看到命令生效（以前 S 命令是"静默生效"）*/
+    {
+      static int32_t s_last_tgt;
+      if ((int32_t)(tel.target_rpm + 0.5f) != s_last_tgt)
+      {
+        s_last_tgt = (int32_t)(tel.target_rpm + 0.5f);
+        UART_Link_Printf("TGT %d  OUT %d\r\n",
+                         (int)s_last_tgt,
+                         (int)(tel.out_permille + 0.5f));
+      }
+    }
 
     /* `V` 命令：开/关 VOFA 波形流（默认关，否则纯文本串口满屏二进制"乱码"）*/
     if (CMD_TakeVofaToggle() != 0U)
