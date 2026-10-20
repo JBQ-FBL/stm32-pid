@@ -91,7 +91,7 @@ STM32F103C8T6 + TB6612 + JGB37-520 编码器电机，**5 ms 控制周期**做速
 
 **① System Core**
 
-**GPIO**（System Core → GPIO → 点引脚，右侧面板就是下面这 5 项）⬜
+**GPIO**（System Core → GPIO → 点引脚，右侧面板就是下面这 5 项）✅
 
 | 引脚 | 用途 | `GPIO output level` | `GPIO mode` | `GPIO Pull-up/Pull-down` | `Maximum output speed` | `User Label` |
 |---|---|---|---|---|---|---|
@@ -104,11 +104,14 @@ STM32F103C8T6 + TB6612 + JGB37-520 编码器电机，**5 ms 控制周期**做速
 - 为什么低电平亮：PC13 硬件是 LED 阳极接 3.3 V、阴极接 PC13，所以 `Low` = 点亮。
 - PB8/PB9 也可以**完全不配**（驱动会自己 init 成开漏），但配了就必须是 `Output Open Drain`，不能推挽。
 
-**NVIC**（System Core → NVIC，在列表里找 `TIM2 global interrupt`）⬜
+**NVIC**（System Core → NVIC，在列表里找 `TIM2 global interrupt`）✅
 
 - `TIM2 global interrupt` = ☑ 勾上；`Preemption Priority` = **1**，`Sub Priority` = **0**
 - 其余保持默认：SysTick = 15；**USART1 的全局中断不勾**（串口发送在主循环，不在中断里等）
 - 为什么：控制中断必须能抢占一切，否则 dt 会被拉长，PID 的积分/微分全歪
+- ⚠️ **不勾的后果是静默的**：`HAL_TIM_Base_Start_IT()` 照样返回 OK，但中断永远不进，程序看起来像“卡住”；
+  验证：`stm32f1xx_it.c` 里应该有 **`void TIM2_IRQHandler(void)`**，`stm32f1xx_msp.c` 里应该有 `HAL_NVIC_EnableIRQ(TIM2_IRQn)`。
+  两个都没有 = 没勾。（`nm` 里能看到的那个 `TIM2_IRQHandler` 是 `W`=weak，启动文件的死循环桩，不算）
 
 **RCC**（System Core → RCC）✅
 
@@ -121,32 +124,39 @@ STM32F103C8T6 + TB6612 + JGB37-520 编码器电机，**5 ms 控制周期**做速
 
 **② Timers**
 
-**TIM1 → PA8（电机 PWM，20 kHz）** ⬜
+**TIM1 → PA8（电机 PWM，20 kHz）** ✅
 
-- `Timers → TIM1 → Channel1` 选 `PWM Generation CH1`
+- `Timers → TIM1 → Channel1` 选 `PWM Generation CH1`（下拉里排第 **10** 项，在 `PWM Generation No Output` 后面）
+- `Clock Source` = `Internal Clock`；`Combined Channels` = `Disable`
 - `Parameter Settings`：`Prescaler` = **0**、`Counter Mode` = `Up`、`Counter Period (ARR)` = **3599**、`auto-reload preload` = `Enable`（其余默认）
 - `PWM Generation Channel 1`：`Mode` = `PWM mode 1`、`Pulse` = **0**、`Output compare preload` = `Enable`、`CH Polarity` = `High`
-- 引脚 PA8 自动变成 `AF Push Pull` / `Very High`；`User Label` 填 `MOTOR_PWM`
+- 引脚 PA8 自动变成 `AF Push Pull`；`Maximum output speed` 改成 **`High`**（CubeMX 默认给 `Low`），`User Label` 填 `MOTOR_PWM`
+  ℹ️ F1 的 GPIO 只有 **`Low`(2 MHz) / `Medium`(10 MHz) / `High`(50 MHz)** 三档，**没有 `Very High`**（那是 F4/F7 的选项）
 - 为什么：72 MHz ÷ (3599+1) = **20 kHz**；`Pulse` 就是占空比（0 = 输出全低）
 
-**TIM2 → 不占引脚（5 ms 控制时基）** ⬜
+**TIM2 → 不占引脚（5 ms 控制时基）** ✅
 
-- 四个通道全部 `Disable`（不用它的引脚，只用它的更新事件）
+- `Clock Source` = **`Internal Clock`**（这一步才叫启用 TIM2）
+- 四个通道全部 `Disable`；`Combined Channels` = `Disable` → **芯片图上一个引脚都不会变绿**（变了 = 点错通道了）
 - `Parameter Settings`：`Prescaler` = **7199**、`Counter Period (ARR)` = **49**（其余默认）
+  ⚠️ **默认值是 65535，必须手动改成 49**；忘了就是 **6.55 s** 一次中断，不是 5 ms
 - `NVIC Settings` 页签：`TIM2 global interrupt` ☑
 - 为什么：72 MHz ÷ 7200 = 10 kHz，数 **50** 个计数 = **5 ms**
 
-**TIM3 → PA6 / PA7（编码器，4 倍频）** ⬜
+**TIM3 → PA6 / PA7（编码器，4 倍频）** ✅
 
 - `Timers → TIM3 → Combined Channels` 选 `Encoder Mode`
-- `Parameter Settings`：`Encoder Mode` = `Encoder Mode TI1 and TI2`、`Prescaler` = **0**、`Counter Period` 保持 **65535**（满量程，软件用 `int16_t` 差值处理回绕）
-- `IC1 Filter` = **6**、`IC2 Filter` = **6**、`IC1 Polarity` = `Rising Edge`、`IC2 Polarity` = `Rising Edge`
-- 引脚 PA6 / PA7 自动变成输入并带 `Pull-up`；`User Label` 填 `ENC_A` / `ENC_B`
+- `Parameter Settings`：`Encoder Mode` = **`Encoder Mode TI1 and TI2`** —— ⚠️ **不能选 `Encoder Mode TI1`**，
+  那是 2 倍频，计数只有一半，所有 rpm 都会偏小 2 倍（标定怎么算都对不上）
+- 同页：`Prescaler` = **0**、`Counter Period` 保持 **65535**（满量程，软件用 `int16_t` 差值处理回绕）
+- **`IC1 Filter` = 6 且 `IC2 Filter` = 6**（CubeMX 只把 IC1 默认填 6，**IC2 默认是 0**，要手动改）；
+  `IC1 Polarity` = `Rising Edge`、`IC2 Polarity` = `Rising Edge`
+- 引脚 PA6 / PA7：**`GPIO Pull-up/Pull-down` 改成 `Pull-up`**（CubeMX 默认 `No pull`），`User Label` 填 `ENC_A` / `ENC_B`
 - 为什么：`TI1 and TI2` = A/B 双相双沿 → 每圈计数 ×4；滤波 6 是去掉 7.3 kHz 脉冲上的毛刺
 
 **③ Connectivity**
 
-**USART1 → PA9 / PA10（115200 8N1）** ⬜
+**USART1 → PA9 / PA10（115200 8N1）** ✅
 
 - `Connectivity → USART1 → Mode` = `Asynchronous`
 - `Parameter Settings`：`Baud Rate` = **115200** Bits/s、`Word Length` = `8 Bits`、`Parity` = `None`、`Stop Bits` = `1`、`Flow Control` = `None`（`Data Direction` 保持 `Receive and Transmit`）
@@ -199,13 +209,36 @@ Pid/
 └── tests/                 host 测试（gcc 直接编，不进固件）
 ```
 
-**铁律**：`pid.c`、`vofa.c` 不许 include 任何 HAL 头 → 正确性在 `/tmp` 里就能验证，不等硬件。
-新增 `.c` 必须登记 `CMakeLists.txt` 的 `target_sources`，否则编译过、链接报 `undefined reference`。
+**铁律**：
+- `pid.c`、`vofa.c` 不许 include 任何 HAL 头 → 在 `/tmp` 里就能验证，不等硬件。
+- 新增 `.c` 登记**根** `CMakeLists.txt` 的 `target_sources`（`cmake/stm32cubemx/CMakeLists.txt` 是生成物，别动），否则链接报 `undefined reference`。
+
+### CubeMX 会覆盖哪些文件（手改守则）
+
+| 想改什么 | 改哪里 | 重新生成后 |
+|---|---|---|
+| 外设参数（PSC / ARR / 上下拉 / 波特率…）| **`Pid.ioc`** → 点 `GENERATE CODE` | 保留 |
+| 业务代码 | `/* USER CODE BEGIN/END */` 夹层，或 `Components/` 里新模块 | 保留 |
+| CubeMX 不给配的（AF 脚内部上拉等）| `USER CODE BEGIN 2` 里再 `HAL_GPIO_Init()` 覆盖 | 保留 |
+| 手改 `Core/Src/tim.c` 里 `MX_TIM2_Init()` 的数值 | —— | ❌ 被还原 |
+| `cmake/stm32cubemx/CMakeLists.txt`、`.mxproject`、`Drivers/`、`stm32f1xx_hal_conf.h` | —— | ❌ 被重写 |
+
+**CMake 版 CubeMX 的三条规律**（2026-10-20 用 `git diff` 实测，改了 10 个文件 + 新增 `tim.c/usart.c` 一对）
+
+1. **一外设一对文件**：`Core/Src/tim.c` + `Core/Inc/tim.h`（含 `MX_TIMx_Init` / `MspInit` / `MspPostInit`），
+   `main.c` 里只剩 `#include` + `MX_*_Init()` 调用 —— **查配置去看外设自己的 .c，不是 main.c**。
+2. **AF 脚的 GPIO 配置不在 `gpio.c`**：输入脚在 `HAL_<IP>_MspInit()`、输出脚在 `HAL_<IP>_MspPostInit()`。
+   所以 PA6/PA7 的 `Pull-up`、PA8 的 `GPIO_SPEED_FREQ_HIGH` 都在 **`tim.c`** 里，改 `gpio.c` 没用。
+3. **勾了 NVIC 才有三件套**：`stm32f1xx_it.c` 的 `TIM2_IRQHandler` + `it.h` 原型 + `MspInit` 里的
+   `HAL_NVIC_SetPriority/EnableIRQ`。判据：`arm-none-eabi-nm build/Debug/Pid.elf | grep TIM2_IRQHandler`
+   要看到 **`T`**；看到 **`W`** = 还是启动文件的 weak 死循环桩（= 没勾中断）。
 
 ### 进度
 
 - [x] CubeMX 骨架 + 72 MHz + SWD，`Pid.elf` 能编出来
-- [ ] 外设配置（TIM1 / TIM2 / TIM3 / USART1 / GPIO）
+- [x] 五个外设已生成代码（TIM1 PWM / TIM2 时基 / TIM3 编码器 / USART1 / GPIO），编译通过
+      —— 2026-10-20 实测：FLASH **10208 B / 64 KB（15.6%）**、RAM **1872 B / 20 KB（9.1%）**
+- [x] **CubeMX 全部配完并核对**（2026-10-20 16:05 生成；`tim.c` 里 TI12 / IC1&IC2 Filter 6 / Pull-up / High 全部到位）
 - [ ] 装驱动（motor-tb6612、oled-ssd1306）+ 拷入 pid / cmd
 - [ ] 无电机验证：虚拟被控对象 + VOFA 曲线 + OLED + PC 端指标脚本
 - [ ] 真机：编码器标定 → 开环验方向 → 闭环调参 → 记录数字
