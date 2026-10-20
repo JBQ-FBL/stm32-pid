@@ -106,7 +106,18 @@ int main(void)
   feed("?\n");
   CHECK(CMD_TakeStatusRequest() == 1U, "? 置位状态打印请求");
 
-  printf("[9] 复位\n");
+  printf("[9] V 波形流开关\n");
+  CMD_Reset();
+  CHECK(CMD_GetVofa() == CMD_VOFA_DEFAULT, "上电状态跟随 CMD_VOFA_DEFAULT");
+  feed("V\n");
+  CHECK(CMD_TakeVofaToggle() == 1U, "V 置位波形流切换请求");
+  CHECK(CMD_TakeVofaToggle() == 0U, "读后清零");
+  CMD_SetVofa(1U);
+  CHECK(CMD_GetVofa() == 1U, "SetVofa(1) 生效（应用侧按下发送）");
+  CMD_SetVofa(0U);
+  CHECK(CMD_GetVofa() == 0U, "SetVofa(0) 生效（停止发送）");
+
+  printf("[10] 复位\n");
   CMD_Reset();
   CHECK(CMD_GetTargetRpm() == 0 && CMD_GetAutoStep() == CMD_AUTOSTEP_DEFAULT, "Reset 后目标 0、自动阶跃回到默认值");
 

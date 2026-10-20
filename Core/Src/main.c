@@ -108,7 +108,7 @@ int main(void)
   Vofa_Init(UART_Link_Write);    /* VOFA 的输出接到串口 */
   SpeedLoop_Start();             /* PWM 起振 + TIM2 的 5 ms 心跳 */
 
-  UART_Link_Printf("\r\nready. S200 / S-100 / X / A / ?\r\n");
+  UART_Link_Printf("\r\nready. S200 / S-100 / X / V(vofa) / A / ?\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -143,8 +143,15 @@ int main(void)
 
     SpeedLoop_GetTelemetry(&tel);
 
-    /* VOFA 100 Hz（三条线：目标 / 实际 / 输出）*/
-    if ((now - s_t_vofa) >= 10U)
+    /* `V` 命令：开/关 VOFA 波形流（默认关，否则纯文本串口满屏二进制"乱码"）*/
+    if (CMD_TakeVofaToggle() != 0U)
+    {
+      CMD_SetVofa((CMD_GetVofa() != 0U) ? 0U : 1U);
+      UART_Link_Printf("VOFA %s\r\n", (CMD_GetVofa() != 0U) ? "ON" : "OFF");
+    }
+
+    /* VOFA 100 Hz（三条线：目标 / 实际 / 输出）—— 只在打开时才发 */
+    if ((CMD_GetVofa() != 0U) && ((now - s_t_vofa) >= 10U))
     {
       s_t_vofa = now;
       Vofa_Send3(tel.target_rpm, tel.actual_rpm, tel.out_permille);

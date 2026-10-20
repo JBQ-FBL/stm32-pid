@@ -70,6 +70,17 @@ extern "C" {
 #define CMD_AUTOSTEP_DEFAULT    0
 #endif
 
+/** 上电时是否开启 VOFA 波形流（二进制 JustFloat，100 Hz）。
+  *
+  *   0 = **默认关**（推荐：串口就是纯文本，命令回显看得清）
+  *   1 = 上电就发（接 VOFA+ 看曲线时方便）
+  *
+  *   临时切换：串口敲 `V`。
+  *   ⚠️ 打开后普通文本串口会看到"乱码" —— 那是 16 字节的二进制帧，不是出错。 */
+#ifndef CMD_VOFA_DEFAULT
+#define CMD_VOFA_DEFAULT        0
+#endif
+
 /* ==========================================================================
  * 接口
  * ========================================================================== */
@@ -104,6 +115,11 @@ uint8_t CMD_GetAutoStep(void);
 
 /** 设自动阶跃开关（收到 S 命令时应用会自动关掉它） */
 void CMD_SetAutoStep(uint8_t on);
+
+/** VOFA 波形流是否开启（`V` 命令切换）*/
+uint8_t CMD_GetVofa(void);
+void    CMD_SetVofa(uint8_t on);
+uint8_t CMD_TakeVofaToggle(void);
 
 #ifdef __cplusplus
 }

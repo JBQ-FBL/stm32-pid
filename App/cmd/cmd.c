@@ -46,6 +46,8 @@ static uint8_t     s_stop_req;
 static uint8_t     s_status_req;
 static uint8_t     s_autostep_toggle_req;
 static uint8_t     s_autostep = CMD_AUTOSTEP_DEFAULT;
+static uint8_t     s_vofa = CMD_VOFA_DEFAULT;
+static uint8_t     s_vofa_toggle_req;
 
 /* ==========================================================================
  * 私有函数
@@ -115,6 +117,8 @@ void CMD_Reset(void)
   s_status_req        = 0U;
   s_autostep_toggle_req = 0U;
   s_autostep          = CMD_AUTOSTEP_DEFAULT;
+  s_vofa              = CMD_VOFA_DEFAULT;
+  s_vofa_toggle_req   = 0U;
 }
 
 void CMD_FeedByte(char c)
@@ -167,6 +171,12 @@ void CMD_FeedByte(char c)
     s_pending   = 0;
     s_negative  = 0U;
     s_has_digit = 0U;
+    return;
+  }
+
+  if ((c == 'V') || (c == 'v'))
+  {
+    s_vofa_toggle_req = 1U;
     return;
   }
 
@@ -232,4 +242,21 @@ uint8_t CMD_GetAutoStep(void)
 void CMD_SetAutoStep(uint8_t on)
 {
   s_autostep = (on != 0U) ? 1U : 0U;
+}
+
+uint8_t CMD_GetVofa(void)
+{
+  return s_vofa;
+}
+
+void CMD_SetVofa(uint8_t on)
+{
+  s_vofa = (on != 0U) ? 1U : 0U;
+}
+
+uint8_t CMD_TakeVofaToggle(void)
+{
+  uint8_t v = s_vofa_toggle_req;
+  s_vofa_toggle_req = 0U;
+  return v;
 }
