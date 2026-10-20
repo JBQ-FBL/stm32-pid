@@ -52,6 +52,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/App/speed-loop/speed-loop.c
     ${CMAKE_CURRENT_SOURCE_DIR}/App/vofa/vofa.c
     ${CMAKE_CURRENT_SOURCE_DIR}/App/ui/ui.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/App/debug/fault-report.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Components/motor-tb6612/motor.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Components/motor-tb6612/motor_encoder.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Components/oled-ssd1306/oled.c
@@ -66,6 +67,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/App/speed-loop
     ${CMAKE_CURRENT_SOURCE_DIR}/App/vofa
     ${CMAKE_CURRENT_SOURCE_DIR}/App/ui
+    ${CMAKE_CURRENT_SOURCE_DIR}/App/debug
     ${CMAKE_CURRENT_SOURCE_DIR}/Components/motor-tb6612
     ${CMAKE_CURRENT_SOURCE_DIR}/Components/oled-ssd1306
 )
