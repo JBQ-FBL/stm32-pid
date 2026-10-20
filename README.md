@@ -200,19 +200,20 @@ STM32F103C8T6 + TB6612 + JGB37-520 编码器电机，**5 ms 控制周期**做速
 ```
 Pid/
 ├── Core/                  CubeMX 生成：main.c / gpio.c / 中断 / 时钟
-├── Components/            drv 从 ~/stm32-drivers 装的驱动
+├── Components/            drv 装的**外设驱动**（只有驱动，不放自己的代码）
 │   ├── motor-tb6612/      PWM + 方向 + 编码器测速（HAL）
-│   ├── oled-ssd1306/      软件 I2C 显示
+│   └── oled-ssd1306/      软件 I²C 显示
+├── App/                   ★ 自己写的应用层（drv 不碰）
 │   ├── pid/               pid.c/h：纯 C，无 HAL，可在 PC 上单测
-│   ├── speed-loop/        5 ms 调度、测速、限幅、保护、虚拟被控对象
-│   ├── vofa/              JustFloat 组帧（只依赖一个 write 回调）
-│   └── cmd/               串口命令：S200 / S-100 / X / A / ?
-└── tests/                 host 测试（gcc 直接编，不进固件）
+│   ├── cmd/               串口命令：S200 / S-100 / X / A / ?
+│   ├── speed-loop/        5 ms 调度、测速、限幅、保护、虚拟被控对象（待写）
+│   └── vofa/              JustFloat 组帧（待写）
+└── tests/                 host 测试（test_pid.c / test_cmd.c，不进固件）
 ```
 
 **铁律**：
 - `pid.c`、`vofa.c` 不许 include 任何 HAL 头 → 在 `/tmp` 里就能验证，不等硬件。
-- 新增 `.c` 登记**根** `CMakeLists.txt` 的 `target_sources`（`cmake/stm32cubemx/CMakeLists.txt` 是生成物，别动），否则链接报 `undefined reference`。
+- 新增 `.c`（`App/` 下）登记**根** `CMakeLists.txt` 的 `target_sources`（`cmake/stm32cubemx/CMakeLists.txt` 是生成物，别动），否则链接报 `undefined reference`。
 
 ### CubeMX 会覆盖哪些文件（手改守则）
 
