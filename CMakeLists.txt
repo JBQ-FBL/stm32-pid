@@ -48,6 +48,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # ── 自己写的应用层（App/，不来自驱动库，drv 不碰）──
     ${CMAKE_CURRENT_SOURCE_DIR}/App/pid/pid.c
     ${CMAKE_CURRENT_SOURCE_DIR}/App/cmd/cmd.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/App/cmd/uart-link.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/App/speed-loop/speed-loop.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/App/vofa/vofa.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/App/ui/ui.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Components/motor-tb6612/motor.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Components/motor-tb6612/motor_encoder.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Components/oled-ssd1306/oled.c
@@ -59,6 +63,9 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     ${CMAKE_CURRENT_SOURCE_DIR}/App/pid
     ${CMAKE_CURRENT_SOURCE_DIR}/App/cmd
+    ${CMAKE_CURRENT_SOURCE_DIR}/App/speed-loop
+    ${CMAKE_CURRENT_SOURCE_DIR}/App/vofa
+    ${CMAKE_CURRENT_SOURCE_DIR}/App/ui
     ${CMAKE_CURRENT_SOURCE_DIR}/Components/motor-tb6612
     ${CMAKE_CURRENT_SOURCE_DIR}/Components/oled-ssd1306
 )

@@ -24,7 +24,12 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "speed-loop.h"
+#include "ui.h"
+#include "vofa.h"
+#include "uart-link.h"
+#include "cmd.h"
+#include "motor.h"      /* MOTOR_EmergencyStop() */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,6 +50,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+static uint32_t s_t_vofa;   /* 上次发 VOFA 的时刻（ms） */
+static uint32_t s_t_ui;     /* 上次刷 OLED 的时刻（ms） */
 
 /* USER CODE END PV */
 
@@ -93,7 +100,15 @@ int main(void)
   MX_TIM3_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  /* ── 应用层初始化（都在 App/ 里，CubeMX 重新生成不会动）──
+     顺序：先执行器/控制器，再显示，最后串口和心跳 —— 这样"心跳一响就开始算" */
+  SpeedLoop_Init();              /* MOTOR_Init(&htim1) + PID_Init */
+  UI_Init();                     /* OLED；没插屏也照样往下跑 */
+  UART_Link_Init(&huart1);       /* 开 USART1 中断，开始收命令 */
+  Vofa_Init(UART_Link_Write);    /* VOFA 的输出接到串口 */
+  SpeedLoop_Start();             /* PWM 起振 + TIM2 的 5 ms 心跳 */
 
+  UART_Link_Printf("\r\nready. S200 / S-100 / X / A / ?\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -103,6 +118,44 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    SpeedLoop_Telemetry_t tel;
+    uint32_t now = HAL_GetTick();
+
+    /* 急停请求（串口 X）：立刻断电，目标已被 cmd 清成 0 */
+    if (CMD_TakeStopRequest() != 0U)
+    {
+      MOTOR_EmergencyStop();
+      UART_Link_Printf("STOP\r\n");
+    }
+
+    /* '?' 状态查询 */
+    if (CMD_TakeStatusRequest() != 0U)
+    {
+      SpeedLoop_GetTelemetry(&tel);
+      UART_Link_Printf("tgt=%d act=%d out=%d kp=%d ki=%d tick=%lu\r\n",
+                       (int)(tel.target_rpm + 0.5f),
+                       (int)(tel.actual_rpm + 0.5f),
+                       (int)(tel.out_permille + 0.5f),
+                       (int)(tel.kp + 0.5f),
+                       (int)(tel.ki + 0.5f),
+                       (unsigned long)tel.tick);
+    }
+
+    SpeedLoop_GetTelemetry(&tel);
+
+    /* VOFA 100 Hz（三条线：目标 / 实际 / 输出）*/
+    if ((now - s_t_vofa) >= 10U)
+    {
+      s_t_vofa = now;
+      Vofa_Send3(tel.target_rpm, tel.actual_rpm, tel.out_permille);
+    }
+
+    /* OLED 10 Hz（软件 I²C 刷屏慢，别更快）*/
+    if ((now - s_t_ui) >= 100U)
+    {
+      s_t_ui = now;
+      UI_Refresh(&tel);
+    }
   }
   /* USER CODE END 3 */
 }

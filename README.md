@@ -237,13 +237,14 @@ Pid/
 
 ### 进度
 
-- [x] CubeMX 骨架 + 72 MHz + SWD，`Pid.elf` 能编出来
-- [x] 五个外设已生成代码（TIM1 PWM / TIM2 时基 / TIM3 编码器 / USART1 / GPIO），编译通过
-      —— 2026-10-20 实测：FLASH **10208 B / 64 KB（15.6%）**、RAM **1872 B / 20 KB（9.1%）**
-- [x] **CubeMX 全部配完并核对**（2026-10-20 16:05 生成；`tim.c` 里 TI12 / IC1&IC2 Filter 6 / Pull-up / High 全部到位）
-- [ ] 装驱动（motor-tb6612、oled-ssd1306）+ 拷入 pid / cmd
-- [ ] 无电机验证：虚拟被控对象 + VOFA 曲线 + OLED + PC 端指标脚本
-- [ ] 真机：编码器标定 → 开环验方向 → 闭环调参 → 记录数字
+- [x] CubeMX 骨架 + 72 MHz + SWD；五外设配完并核对（`tim.c` 里 TI12 / Filter 6 / Pull-up / High 全到位）
+- [x] 驱动装好（`Components/`）+ 根 `CMakeLists.txt` 覆盖 4 个接线宏
+- [x] `App/` 应用层：`pid` `cmd` `speed-loop` `vofa` `ui` `uart-link`（**开环版**，可编译 0 error 0 warning）
+      —— 2026-10-20 实测：FLASH **20128 B / 64 KB（30.7%）**、RAM **2424 B / 20 KB（11.8%）**
+- [x] host 测试：`pid` 20/20、`cmd` 21/21、`vofa` 6/6
+- [ ] **CubeMX 勾 `USART1 global interrupt`（抢占 2）** ← 不勾串口一收数据就卡死
+- [ ] 上板验证：`S200` → 540‰、OLED 显示 TGT/OUT
+- [ ] 接真电机：开环标定 `Kv` → `SPEED_LOOP_FEEDBACK=1` 闭环 → 调参
 - [ ] 答辩：扰动实验 + 参数固化 + 讲解稿
 
 ---
