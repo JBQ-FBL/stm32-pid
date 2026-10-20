@@ -33,14 +33,40 @@ void UART_Link_Init(UART_HandleTypeDef *huart)
 
 void UART_Link_Write(const uint8_t *buf, uint16_t len)
 {
+  USART_TypeDef *u;
+  uint16_t i;
+
   if ((s_uart == NULL) || (buf == NULL) || (len == 0U))
   {
     return;
   }
 
-  /* 阻塞发送。16 字节 @115200 ≈ 1.4 ms，主循环里发 100 Hz 完全来得及；
-     接收方向有中断兜着，所以不会丢字节。*/
-  (void)HAL_UART_Transmit(s_uart, (uint8_t *)buf, len, 20U);
+  u = s_uart->Instance;
+
+  /* ★ 为什么不用 HAL_UART_Transmit：
+   *   HAL 的 Transmit 和 Receive_IT **共用 huart->Lock**。主循环正发数据时，
+   *   接收完成中断里再调 HAL_UART_Receive_IT() 就会返回 HAL_BUSY，
+   *   而那一刻如果返回值没人管，**接收就永远关掉了** ——
+   *   症状正是"发过一次数据之后串口再也不响应，复位才恢复"。
+   *
+   *   所以这里直接写寄存器：不碰锁、不碰 HAL 状态机，和 Receive_IT 完全不冲突。
+   *   （发送仍可能让 CPU 忙 1~2 ms，接收靠中断，不会丢。）*/
+  for (i = 0U; i < len; i++)
+  {
+    uint32_t guard = 200000UL;
+    while (((u->SR & USART_SR_TXE) == 0U) && (guard-- != 0U))
+    {
+    }
+    u->DR = (uint32_t)buf[i];
+  }
+
+  /* 等最后一个字节真正移出移位寄存器（否则紧接着复位/掉电会截断尾巴）*/
+  {
+    uint32_t guard = 200000UL;
+    while (((u->SR & USART_SR_TC) == 0U) && (guard-- != 0U))
+    {
+    }
+  }
 }
 
 void UART_Link_Printf(const char *fmt, ...)
@@ -82,5 +108,28 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
   }
 
   CMD_FeedByte((char)s_rx_byte);                       /* 中断里只做状态机，不打印 */
-  (void)HAL_UART_Receive_IT(s_uart, &s_rx_byte, 1U);   /* 重新武装 */
+
+  /* 重新武装：万一返回 HAL_BUSY（理论上现在不会了），再试一次 */
+  if (HAL_UART_Receive_IT(s_uart, &s_rx_byte, 1U) != HAL_OK)
+  {
+    (void)HAL_UART_Receive_IT(s_uart, &s_rx_byte, 1U);
+  }
+}
+
+/* 溢出/噪声/帧错误：清了标志再重新武装，否则接收会永久停摆
+ * （ORE 是 115200 下最常见的"串口突然死了"元凶）*/
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+  if (huart != s_uart)
+  {
+    return;
+  }
+
+  __HAL_UART_CLEAR_OREFLAG(huart);
+  __HAL_UART_CLEAR_NEFLAG(huart);
+  __HAL_UART_CLEAR_FEFLAG(huart);
+  __HAL_UART_CLEAR_PEFLAG(huart);
+
+  huart->RxState = HAL_UART_STATE_READY;
+  (void)HAL_UART_Receive_IT(s_uart, &s_rx_byte, 1U);
 }
