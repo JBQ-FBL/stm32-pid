@@ -110,12 +110,18 @@ static inline void OLED_GPIO_PortClockEnable(GPIO_TypeDef *port)
 #endif
 
 /* I2C 从机地址：由模块决定，常见 0x78（7 位 0x3C）。
-   万一屏死活不亮，把它改成 0x7A（7 位 0x3D）再试一次。 */
+   万一屏死活不亮，改用 -DOLED_I2C_ADDR=0x7A（7 位 0x3D）再试，**不用改本文件**。 */
+#ifndef OLED_I2C_ADDR
 #define OLED_I2C_ADDR        0x78
+#endif
 
-/* ---------- 屏幕尺寸 ---------- */
+/* ---------- 屏幕尺寸（128x64 是 0.96" 的；128x32 的小屏用 -D 覆盖）---------- */
+#ifndef OLED_WIDTH
 #define OLED_WIDTH           128
+#endif
+#ifndef OLED_HEIGHT
 #define OLED_HEIGHT          64
+#endif
 
 /* ---------- 对外接口 ---------- */
 
