@@ -15,6 +15,10 @@
 static UART_HandleTypeDef *s_uart;
 static uint8_t             s_rx_byte;
 
+/* 诊断计数：区分"字节没进来"(rx 不涨) 和 "进来了但命令没生效"(rx 涨) */
+static volatile uint32_t   s_rx_count;
+static volatile uint32_t   s_err_count;
+
 void UART_Link_Init(UART_HandleTypeDef *huart)
 {
   if (huart == NULL)
@@ -23,6 +27,8 @@ void UART_Link_Init(UART_HandleTypeDef *huart)
   }
 
   s_uart = huart;
+  s_rx_count = 0U;
+  s_err_count = 0U;
 
   /* 串口中断优先级 2 → 低于 TIM2 的 1，控制中断永远能抢占它 */
   HAL_NVIC_SetPriority(USART1_IRQn, 2, 0);
@@ -96,6 +102,9 @@ void UART_Link_Printf(const char *fmt, ...)
   UART_Link_Write((const uint8_t *)buf, (uint16_t)n);
 }
 
+uint32_t UART_Link_RxCount(void)  { return s_rx_count; }
+uint32_t UART_Link_ErrCount(void) { return s_err_count; }
+
 /* ==========================================================================
  * HAL 回调：收满 1 字节 → 喂给命令状态机 → 立刻续订下一字节
  * ========================================================================== */
@@ -107,6 +116,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     return;
   }
 
+  s_rx_count++;
   CMD_FeedByte((char)s_rx_byte);                       /* 中断里只做状态机，不打印 */
 
   /* 重新武装：万一返回 HAL_BUSY（理论上现在不会了），再试一次 */
@@ -125,6 +135,7 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
     return;
   }
 
+  s_err_count++;
   __HAL_UART_CLEAR_OREFLAG(huart);
   __HAL_UART_CLEAR_NEFLAG(huart);
   __HAL_UART_CLEAR_FEFLAG(huart);

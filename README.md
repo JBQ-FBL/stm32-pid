@@ -20,11 +20,10 @@ STM32F103C8T6 + TB6612 + JGB37-520 编码器电机。5 ms 控制周期、20 kHz 
 | `X` | 急停 |
 | `A` | 开/关自动阶跃（打开后：2 s → 150 rpm 保持 3 s → 回 0，10 s 循环。**上电默认关**）|
 | `V` | 开/关 **VOFA 波形流**（打开后串口是二进制帧，文本终端看起来就是乱码）|
-| `?` | 回一行 tgt / act / out / kp / ki / tick |
+| `?` | 回一行 `tgt/act/out/kp/ki/tick`，外加 `rx=字节数 err=串口错误数`（排障用）|
 
-⚠️ **命令必须以换行结尾**（`cmd.c` 收到 `\n` 或 `\r` 才执行，防止收到半个命令就改目标）。
-VS Code 自带串口监视器默认不加行尾，已在设置里改成 `vscode-serial-monitor.lineEnding = "LF"`；
-用 picocom（`picocom -b 115200 /dev/ttyUSB0`，Enter 发 CR）或 VOFA+ 时也注意这项设置。
+命令带不带换行都行：带 `\n`/`\r` 立即执行；**不带给也行 —— 停顿 500 ms 自动结算**
+（`CMD_FLUSH_TIMEOUT_MS`，在 `App/cmd/cmd.h` 可改）。所以 VS Code 串口监视器就算不加行尾也能用。
 
 OLED 四行：目标 / 实际 / 输出‰ / 参数（有故障时显示 `FAULT xxx`）。
 VOFA+ 用 JustFloat，三条线 = 目标、实际、输出。**波形流默认关闭**（敲 `V` 打开），

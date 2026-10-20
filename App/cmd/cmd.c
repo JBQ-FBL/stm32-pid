@@ -41,6 +41,7 @@ static uint8_t     s_negative;
 static uint8_t     s_has_digit;
 static uint8_t     s_line_len;       /* 本行已收字符数（防超长） */
 static uint8_t     s_drop_line;      /* 1 = 本行已判废，丢弃到行尾 */
+static uint16_t    s_idle_ticks;     /* 半截命令已经停了多少个 5 ms */
 
 static uint8_t     s_stop_req;
 static uint8_t     s_status_req;
@@ -113,6 +114,7 @@ void CMD_Reset(void)
   s_has_digit         = 0U;
   s_line_len          = 0U;
   s_drop_line         = 0U;
+  s_idle_ticks        = 0U;
   s_stop_req          = 0U;
   s_status_req        = 0U;
   s_autostep_toggle_req = 0U;
@@ -121,8 +123,34 @@ void CMD_Reset(void)
   s_vofa_toggle_req   = 0U;
 }
 
+void CMD_PollTimeout(void)
+{
+#if (CMD_FLUSH_TIMEOUT_MS > 0U)
+  if ((s_state == CMD_ST_IDLE) && (s_pending == 0) && (s_line_len == 0U))
+  {
+    s_idle_ticks = 0U;
+    return;
+  }
+
+  s_idle_ticks++;
+
+  if (s_idle_ticks >= (uint16_t)(CMD_FLUSH_TIMEOUT_MS / 5U))
+  {
+    CMD_Execute();
+    s_state      = CMD_ST_IDLE;
+    s_pending    = 0;
+    s_negative   = 0U;
+    s_has_digit  = 0U;
+    s_line_len   = 0U;
+    s_drop_line  = 0U;
+    s_idle_ticks = 0U;
+  }
+#endif
+}
+
 void CMD_FeedByte(char c)
 {
+  s_idle_ticks = 0U;
   /* ---- 行尾：结算本行 ---- */
   if ((c == '\n') || (c == '\r'))
   {

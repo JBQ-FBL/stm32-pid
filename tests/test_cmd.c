@@ -117,7 +117,22 @@ int main(void)
   CMD_SetVofa(0U);
   CHECK(CMD_GetVofa() == 0U, "SetVofa(0) 生效（停止发送）");
 
-  printf("[10] 复位\n");
+  printf("[10] 没有换行时按停顿自动结算\n");
+  CMD_Reset();
+  feed("S100");                                   /* 注意：没有 \n */
+  CHECK(CMD_GetTargetRpm() == 0, "还没到超时，目标不动（不会半行生效）");
+  for (int i = 0; i < 100; i++) { CMD_PollTimeout(); }   /* 100 × 5 ms = 500 ms */
+  CHECK(CMD_GetTargetRpm() == 100, "停 500 ms 后自动结算，目标变 100（实际 %d）",
+        (int)CMD_GetTargetRpm());
+
+  CMD_Reset();
+  feed("S20");                                    /* 半行 */
+  for (int i = 0; i < 10; i++) { CMD_PollTimeout(); }
+  feed("0\n");                                    /* 100 ms 内补完剩下的 "0" */
+  CHECK(CMD_GetTargetRpm() == 200, "停顿不足 500 ms 时继续拼行，得到 200（实际 %d）",
+        (int)CMD_GetTargetRpm());
+
+  printf("[11] 复位\n");
   CMD_Reset();
   CHECK(CMD_GetTargetRpm() == 0 && CMD_GetAutoStep() == CMD_AUTOSTEP_DEFAULT, "Reset 后目标 0、自动阶跃回到默认值");
 

@@ -30,6 +30,10 @@ void UART_Link_Init(UART_HandleTypeDef *huart);
   * 同时也作为 Vofa_Init() 的回调 —— 发一帧就调它一次。*/
 void UART_Link_Write(const uint8_t *buf, uint16_t len);
 
+/** 诊断：收到过多少字节 / 发生过多少次串口错误（ORE 等）*/
+uint32_t UART_Link_RxCount(void);
+uint32_t UART_Link_ErrCount(void);
+
 /** 格式化打印（给 '?' 状态查询用；主循环里调，不要在中断里用）*/
 void UART_Link_Printf(const char *fmt, ...);
 

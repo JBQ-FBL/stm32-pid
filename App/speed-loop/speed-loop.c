@@ -143,6 +143,9 @@ void SpeedLoop_Tick(void)
 
   s_tick++;
 
+  /* 串口兜底：半截命令停太久就当打完（防止串口工具不给换行时整机"失联"）*/
+  CMD_PollTimeout();
+
   /* ---- 1) 目标：自动阶跃开着就本地生成，否则跟串口给的 ---- */
   if (CMD_GetAutoStep() != 0U)
   {
