@@ -108,7 +108,7 @@ int main(void)
 
   printf("[9] 复位\n");
   CMD_Reset();
-  CHECK(CMD_GetTargetRpm() == 0 && CMD_GetAutoStep() == 1U, "Reset 后目标 0、自动阶跃重新开启");
+  CHECK(CMD_GetTargetRpm() == 0 && CMD_GetAutoStep() == CMD_AUTOSTEP_DEFAULT, "Reset 后目标 0、自动阶跃回到默认值");
 
   printf("\n=== 结果：%d 通过，%d 失败 ===\n", g_pass, g_fail);
   return (g_fail == 0) ? 0 : 1;

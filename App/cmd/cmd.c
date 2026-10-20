@@ -45,7 +45,7 @@ static uint8_t     s_drop_line;      /* 1 = 本行已判废，丢弃到行尾 */
 static uint8_t     s_stop_req;
 static uint8_t     s_status_req;
 static uint8_t     s_autostep_toggle_req;
-static uint8_t     s_autostep = 1U;
+static uint8_t     s_autostep = CMD_AUTOSTEP_DEFAULT;
 
 /* ==========================================================================
  * 私有函数
@@ -114,7 +114,7 @@ void CMD_Reset(void)
   s_stop_req          = 0U;
   s_status_req        = 0U;
   s_autostep_toggle_req = 0U;
-  s_autostep          = 1U;
+  s_autostep          = CMD_AUTOSTEP_DEFAULT;
 }
 
 void CMD_FeedByte(char c)
