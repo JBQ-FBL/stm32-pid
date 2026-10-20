@@ -167,7 +167,8 @@ STM32F103C8T6 + TB6612 + JGB37-520 编码器电机，**5 ms 控制周期**做速
 
 - **冲突已避开**：TIM1 只用 CH1（PA8）→ PA9/PA10 让给 USART1；编码器用 TIM3 不用 TIM1；PWM 与 USART1 不抢脚。
 - **PB6 / PB7 不配**（硬件 I²C1 不用，空着备用）；PB8/PB9 当普通 GPIO 做软件 I²C（TIM4 没用到）。
-- **为什么 OLED 用 PB8/PB9 而不是 PB6/PB7（硬件 I²C1）**：驱动母本 `oled-ssd1306` 默认就是这两个脚，`oled.h` 一个宏都不用改；F103 的硬件 I²C 还有著名的总线锁死勘误，软件模拟更稳。真要换脚就改 `oled.h` 里 **6 个宏**（4 个引脚 + 2 个端口时钟）。
+- **为什么 OLED 用 PB8/PB9 而不是 PB6/PB7（硬件 I²C1）**：驱动母本 `oled-ssd1306` 默认就是这两个脚，`oled.h` 一个宏都不用改；F103 的硬件 I²C 还有著名的总线锁死勘误，软件模拟更稳。真要换脚**不用改驱动文件**：优先用 CubeMX 的 User Label（`OLED_SCL` / `OLED_SDA`），
+  或在根 `CMakeLists.txt` 里 `-DOLED_SCL_GPIO_PIN=...` 覆盖；端口时钟会自动跟着端口走。
 - **OLED 接线（4 针）**：`VCC → 3.3V`、`GND → GND`、`SCL → PB8`、`SDA → PB9`。SCL/SDA **不交叉**；排针上 `B9 B8 B7 B6` 连着四个孔，但 **B7/B6 是普通 GPIO，既不供电也不接地**。
 
 ---
