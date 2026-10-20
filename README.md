@@ -23,7 +23,11 @@ STM32F103C8T6 + TB6612 + JGB37-520 编码器电机。5 ms 控制周期、20 kHz 
 | `?` | 回一行 `tgt/act/out/kp/ki/tick`，外加 `rx=字节数 err=串口错误数`（排障用）|
 
 命令带不带换行都行：带 `\n`/`\r` 立即执行；**不带给也行 —— 停顿 500 ms 自动结算**
-（`CMD_FLUSH_TIMEOUT_MS`，在 `App/cmd/cmd.h` 可改）。所以 VS Code 串口监视器就算不加行尾也能用。
+（`CMD_FLUSH_TIMEOUT_MS`，在 `App/cmd/cmd.h` 可改）。
+
+⚠️ 串口工具的"行尾"设置有个坑：VS Code 串口监视器的 `vscode-serial-monitor.lineEnding`
+枚举值是 **转义序列本身**（`"\n"` / `"\r"` / `"\r\n"`），写成描述文字 `"LF"` 会把
+**字母 L 和 F 当成正文发出去**，于是 `S50` 变成 `S50LF` → 被解析器判为非法行 → 目标不动。
 
 OLED 四行：目标 / 实际 / 输出‰ / 参数（有故障时显示 `FAULT xxx`）。
 VOFA+ 用 JustFloat，三条线 = 目标、实际、输出。**波形流默认关闭**（敲 `V` 打开），
