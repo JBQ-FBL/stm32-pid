@@ -11,9 +11,9 @@
   *                         1 = 闭环（编码器测速 + PID 修正）
   *   SPEED_LOOP_SIM_PLANT  1 = 用一阶惯性模型冒充电机（没有硬件也能出曲线）
   *
-  *   现在（电机/编码器未到）：FEEDBACK=0、SIM=0 → 串口给多少转，就按比例给占空比
-  *   编码器到了：             FEEDBACK=1
+  *   现在（编码器已接好）：   FEEDBACK=1、SIM=0 → 闭环
   *   想在没有硬件时调 PID：   SIM=1（FEEDBACK 无所谓）
+  *   标定编码器：            串口发 C 进标定模式（PWM 强制 0，只累计计数）
   *
   * ── 目标值从哪来 ───────────────────────────────────────────────────────────
   *
@@ -37,7 +37,7 @@
 
 /** 0 = 开环（只有前馈）；1 = 编码器闭环 */
 #ifndef SPEED_LOOP_FEEDBACK
-#define SPEED_LOOP_FEEDBACK      0
+#define SPEED_LOOP_FEEDBACK      1
 #endif
 
 /** 1 = 一阶惯性模型冒充电机（无硬件调试用） */
@@ -50,15 +50,20 @@
  * ========================================================================== */
 
 /** 前馈系数 ‰/rpm：稳态时 1 rpm 需要多少占空比。
-  * 初值按"满量程 900‰ 对应 333 rpm"估，**接真电机后必须开环实测再改**（见 AGENTS §10）。*/
-#define SPEED_LOOP_KV            2.70f
+  * **2026-10-21 实测重算**（串口探针，out 与稳态转速的比值）：
+  *     300‰ → 72.7 rpm   → K = 0.242 rpm/‰ → Kv = 4.13
+  *     210‰ → 48.5 rpm   → K = 0.231 rpm/‰ → Kv = 4.33
+  * 取中值 4.2（原估值 2.70 是按“900‰ ↔ 333rpm”算的，偏小 35%，导致前馈不足→超调）*/
+#define SPEED_LOOP_KV            3.75f       /* 开环扫描标定：300‰ -> 80 rpm */
 
-#define SPEED_LOOP_KP            3.0f      /* 位置式 PI 起步：Kd 先 0 */
-#define SPEED_LOOP_KI            30.0f
+#define SPEED_LOOP_KP           10.0f
+#define SPEED_LOOP_KI            5.0f
 #define SPEED_LOOP_KD            0.0f
 
-#define SPEED_LOOP_OUT_MAX       900.0f    /* 输出限幅 ±900‰（留 10% 余量）*/
-#define SPEED_LOOP_INTEG_MAX     300.0f    /* 积分限幅（抗饱和）*/
+/* 方向已用 S50/S80 实测确认（act 为正且跟随 target），可以放开到 900‰。
+ * 保留记录：首轮曾用 300‰，结果 S80 时输出顶格仍只能到 72.7 rpm（静差 9%）.*/
+#define SPEED_LOOP_OUT_MAX      1000.0f
+#define SPEED_LOOP_INTEG_MAX     40.0f     /* ≈ out_max/Ki = 900/30，留点余量 */
 #define SPEED_LOOP_DT_S          0.005f    /* 控制周期 5 ms */
 
 /* 自动阶跃：上电 2 s → STEP_RPM 保持 3 s → 回 0 → 循环（共 10 s）
@@ -71,6 +76,7 @@
 /* 保护参数（只有闭环时生效）*/
 #define SPEED_LOOP_NOPULSE_MS    200       /* 无脉冲：持续多久算异常 */
 #define SPEED_LOOP_STALL_MS      500       /* 堵转：持续多久算异常 */
+#define SPEED_LOOP_DIRBAD_MS     100       /* 方向自检：必须持续这么久才判反（防单拍噪声误停）*/
 
 /* ==========================================================================
  * 遥测：中断里写，主循环只读（拷贝一份走）
@@ -84,6 +90,11 @@ typedef struct
   float    kp, ki, kd;      /* 参数快照：OLED / 答辩能直接报 */
   uint32_t tick;            /* 5 ms 计数（每秒 +200，可当"心跳"判据）*/
   uint8_t  feedback;        /* 1 = 闭环，0 = 开环 */
+
+  /* ---- 编码器标定（'C' 模式）---- */
+  int32_t  enc_total;       /* 累计原始计数（4 倍频，未折算）*/
+  float    enc_revs;        /* = enc_total / counts_per_rev，手转圈数 */
+  uint8_t  calib;           /* 1 = 标定模式（PWM 强制 0）*/
 } SpeedLoop_Telemetry_t;
 
 /* ==========================================================================
@@ -107,5 +118,23 @@ void SpeedLoop_GetTelemetry(SpeedLoop_Telemetry_t *out);
 
 /** 故障原因，NULL = 正常。触发后输出已被强制拉 0 */
 const char *SpeedLoop_Fault(void);
+
+/** 清故障 + 清标定计数（相当于"复位控制器"，不用复位单片机）*/
+void SpeedLoop_ClearFault(void);
+
+/* ==========================================================================
+ * 调参旋钮（全局变量：F5 调试器里可以直接改，下一拍生效，不用重烧）
+ * ==========================================================================
+ * 在 VS Code 的「运行和调试 → 变量 → Globals」里改，改完 OLED 的 KP/KI 会立刻变。
+ * 调好后把数值写回 speed-loop.h 的宏，再烧一次才算真正固化。
+ */
+extern float g_pid_kp;
+extern float g_pid_ki;
+extern float g_pid_kd;
+extern float g_pid_kv;
+
+/** 进出标定模式：on!=0 时 PWM 恒 0，只累计编码器计数，清空之前的计数 */
+void    SpeedLoop_SetCalib(uint8_t on);
+uint8_t SpeedLoop_GetCalib(void);
 
 #endif /* __SPEED_LOOP_H */

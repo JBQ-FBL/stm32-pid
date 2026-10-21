@@ -50,6 +50,20 @@ void UI_Refresh(const SpeedLoop_Telemetry_t *tel)
     return;
   }
 
+  /* ---- 标定模式：四行全给计数，不显示 rpm（此时本来就没在控速）---- */
+  if (tel->calib != 0U)
+  {
+    int whole = (int)tel->enc_revs;
+    int frac  = (int)((tel->enc_revs - (float)whole) * 10.0f);
+    if (frac < 0) { frac = -frac; }
+
+    OLED_ShowString(1, 1, "CALIB  (C=exit)");
+    OLED_Printf(2, 1, "ENC %8ld", (long)tel->enc_total);
+    OLED_Printf(3, 1, "REV %d.%d", whole, frac);
+    OLED_ShowString(4, 1, "turn 10 revs");
+    return;
+  }
+
   OLED_Printf(1, 1, "TGT %4d rpm", (int)(tel->target_rpm + 0.5f));
 
   if (tel->feedback != 0U)

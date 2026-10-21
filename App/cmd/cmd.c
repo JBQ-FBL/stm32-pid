@@ -45,6 +45,7 @@ static uint16_t    s_idle_ticks;     /* 半截命令已经停了多少个 5 ms *
 
 static uint8_t     s_stop_req;
 static uint8_t     s_status_req;
+static uint8_t     s_calib_toggle_req;
 static uint8_t     s_autostep_toggle_req;
 static uint8_t     s_autostep = CMD_AUTOSTEP_DEFAULT;
 static uint8_t     s_vofa = CMD_VOFA_DEFAULT;
@@ -117,6 +118,7 @@ void CMD_Reset(void)
   s_idle_ticks        = 0U;
   s_stop_req          = 0U;
   s_status_req        = 0U;
+  s_calib_toggle_req  = 0U;
   s_autostep_toggle_req = 0U;
   s_autostep          = CMD_AUTOSTEP_DEFAULT;
   s_vofa              = CMD_VOFA_DEFAULT;
@@ -228,6 +230,12 @@ void CMD_FeedByte(char c)
     return;
   }
 
+  if ((c == 'C') || (c == 'c'))
+  {
+    s_calib_toggle_req = 1U;
+    return;
+  }
+
   /* 其它字符：忽略（空格、\t、杂字符都不算错） */
 }
 
@@ -252,6 +260,13 @@ uint8_t CMD_TakeStatusRequest(void)
 {
   uint8_t v = s_status_req;
   s_status_req = 0U;
+  return v;
+}
+
+uint8_t CMD_TakeCalibToggle(void)
+{
+  uint8_t v = s_calib_toggle_req;
+  s_calib_toggle_req = 0U;
   return v;
 }
 

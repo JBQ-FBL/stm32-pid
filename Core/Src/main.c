@@ -108,7 +108,7 @@ int main(void)
   Vofa_Init(UART_Link_Write);    /* VOFA 的输出接到串口 */
   SpeedLoop_Start();             /* PWM 起振 + TIM2 的 5 ms 心跳 */
 
-  UART_Link_Printf("\r\nready v4. S200 / S-100 / X / V(vofa) / A / ?\r\n");
+  UART_Link_Printf("\r\nready v5 closed-loop. C=calib / S200 / S-100 / X / V(vofa) / A / ?\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -121,11 +121,13 @@ int main(void)
     SpeedLoop_Telemetry_t tel;
     uint32_t now = HAL_GetTick();
 
-    /* 急停请求（串口 X）：立刻断电，目标已被 cmd 清成 0 */
+    /* 急停请求（串口 X）：立刻断电，目标已被 cmd 清成 0。
+       ⚠️ 同时清故障计数：否则 ENC_DIR / NO_PULSE 一旦触发，就只能复位单片机才能恢复。
+       安全：cmd 里 X 已经把目标和自动阶跃都置 0，所以清完不会自己转起来。*/
     if (CMD_TakeStopRequest() != 0U)
     {
-      MOTOR_EmergencyStop();
-      UART_Link_Printf("STOP\r\n");
+      SpeedLoop_ClearFault();
+      UART_Link_Printf("STOP (fault cleared)\r\n");
     }
 
     /* '?' 状态查询 */
@@ -141,6 +143,14 @@ int main(void)
                        (unsigned long)tel.tick,
                        (unsigned long)UART_Link_RxCount(),
                        (unsigned long)UART_Link_ErrCount());
+
+      /* 标定模式额外打一行（不打印浮点：用 ×10 的整数避开 newlib printf 浮点支持）*/
+      if (tel.calib != 0U)
+      {
+        UART_Link_Printf("CALIB enc=%ld revx10=%ld\r\n",
+                         (long)tel.enc_total,
+                         (long)(tel.enc_revs * 10.0f));
+      }
     }
 
     SpeedLoop_GetTelemetry(&tel);
@@ -157,6 +167,21 @@ int main(void)
       }
     }
 
+    /* `C` 命令：进/出编码器标定模式 */
+    if (CMD_TakeCalibToggle() != 0U)
+    {
+      uint8_t on = (SpeedLoop_GetCalib() != 0U) ? 0U : 1U;
+      SpeedLoop_SetCalib(on);
+      if (on != 0U)
+      {
+        UART_Link_Printf("CALIB ON  - 手转输出轴正好 10 圈，然后发 ? 或看 OLED\r\n");
+      }
+      else
+      {
+        UART_Link_Printf("CALIB OFF\r\n");
+      }
+    }
+
     /* `V` 命令：开/关 VOFA 波形流（默认关，否则纯文本串口满屏二进制"乱码"）*/
     if (CMD_TakeVofaToggle() != 0U)
     {
@@ -165,14 +190,17 @@ int main(void)
     }
 
     /* VOFA 100 Hz（三条线：目标 / 实际 / 输出）—— 只在打开时才发 */
-    if ((CMD_GetVofa() != 0U) && ((now - s_t_vofa) >= 10U))
+    if ((CMD_GetVofa() != 0U) && ((now - s_t_vofa) >= 5U))   /* 200 Hz：提高上升时间测量分辨率 */
     {
       s_t_vofa = now;
       Vofa_Send3(tel.target_rpm, tel.actual_rpm, tel.out_permille);
     }
 
-    /* OLED 10 Hz（软件 I²C 刷屏慢，别更快）*/
-    if ((now - s_t_ui) >= 100U)
+    /* OLED 刷新间隔：软件 I²C 刷一帧要几十 ms，**会阻塞主循环**。
+     * 原来 100 ms 时，VOFA 的 100 Hz 被拖到实测 **6.6 Hz**（150 ms 才一个点），
+     * 而考核要求「上升时间 < 50 ms」—— 根本采不到上升沿。
+     * 调参期间用 1 Hz（VOFA 能跑到 90 Hz 左右）；只想看屏上数字时改回 100U。*/
+    if ((now - s_t_ui) >= 1000U)
     {
       s_t_ui = now;
       UI_Refresh(&tel);

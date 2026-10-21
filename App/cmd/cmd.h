@@ -25,6 +25,7 @@
   *   S200      → 目标 200 rpm        （超出 ±CMD_TARGET_MAX 自动限幅）
   *   S-100     → 目标 -100 rpm       （负号 = 反转）
   *   X         → 急停：目标 0，并要求应用调 MOTOR_EmergencyStop()
+  *   C         → 切换「编码器标定模式」（PWM 强制 0，只累计计数；手转输出轴 10 圈读总数）
   *   A         → 切换"上电自动阶跃"（调参时关掉它，免得和串口抢目标）
   *   ?         → 请求打印一次状态（目标/实际/参数）
   *
@@ -135,6 +136,9 @@ void CMD_SetAutoStep(uint8_t on);
 uint8_t CMD_GetVofa(void);
 void    CMD_SetVofa(uint8_t on);
 uint8_t CMD_TakeVofaToggle(void);
+
+/** 取「标定模式切换」请求（读一次就清）*/
+uint8_t CMD_TakeCalibToggle(void);
 
 #ifdef __cplusplus
 }
