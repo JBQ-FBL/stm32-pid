@@ -227,6 +227,21 @@ void SpeedLoop_Tick(void)
 
   /* ---- 3) PID 修正（开环时整段不需要）---- */
 #if SPEED_LOOP_FEEDBACK || SPEED_LOOP_SIM_PLANT
+  /* VOFA+ 滑块（串口 KP/KI/KD）：有新值就覆盖宏初值，下一拍生效。
+   * 先拿当前值打底：TakeGains 只改被命令改过的那一个，不会把另两个刷成 0。*/
+  {
+    float kp_new = g_pid_kp;
+    float ki_new = g_pid_ki;
+    float kd_new = g_pid_kd;
+
+    if (CMD_TakeGains(&kp_new, &ki_new, &kd_new) != 0U)
+    {
+      g_pid_kp = kp_new;
+      g_pid_ki = ki_new;
+      g_pid_kd = kd_new;
+    }
+  }
+
   /* 调试器里改了 g_* → 下一拍就生效（只在变了的时候写，开销可忽略）*/
   if ((s_pid.kp != g_pid_kp) || (s_pid.ki != g_pid_ki) || (s_pid.kd != g_pid_kd))
   {

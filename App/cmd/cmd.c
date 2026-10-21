@@ -31,7 +31,9 @@
 typedef enum
 {
   CMD_ST_IDLE = 0,      /* 等命令首字符 */
-  CMD_ST_NUMBER         /* 已经在收 S 后面的数字 */
+  CMD_ST_NUMBER,        /* 已经在收 S 后面的数字（整数）*/
+  CMD_ST_GAIN_FLAG,     /* 收到 K，等 P/I/D */
+  CMD_ST_GAIN_NUM       /* 收到 KP/KI/KD，正在收浮点值 */
 } CMD_State_e;
 
 static CMD_State_e s_state;
@@ -50,6 +52,16 @@ static uint8_t     s_autostep_toggle_req;
 static uint8_t     s_autostep = CMD_AUTOSTEP_DEFAULT;
 static uint8_t     s_vofa = CMD_VOFA_DEFAULT;
 static uint8_t     s_vofa_toggle_req;
+
+/* ---- 实时增益（KP/KI/KD 命令 → VOFA+ 滑块）---- */
+static uint8_t     s_gain_which;     /* 0=Kp 1=Ki 2=Kd */
+static int32_t     s_frac;           /* 小数部分累加值 */
+static uint8_t     s_frac_digits;    /* 已收小数位数 */
+static uint8_t     s_has_dot;
+static float       s_gain_req[3];
+static uint8_t     s_gain_valid;     /* 1 = 有新值待取 */
+static uint8_t     s_gain_mask;      /* bit0=Kp bit1=Ki bit2=Kd：只回写被命令改过的那个
+                                      * （没这个的话，发 KP20 会把 Ki/Kd 一起刷成 0 —— 实测踩过）*/
 
 /* ==========================================================================
  * 私有函数
@@ -77,6 +89,41 @@ static void CMD_AccumulateDigit(char c)
   s_has_digit = 1U;
 }
 
+/** 增益数字的累积：整数部分进 s_pending，小数部分进 s_frac（最多 4 位）*/
+static void CMD_AccumulateGainDigit(char c)
+{
+  int32_t digit = (int32_t)(c - '0');
+
+  if (s_has_dot == 0U)
+  {
+    if (s_pending < 10000) { s_pending = s_pending * 10 + digit; }
+  }
+  else if (s_frac_digits < 4U)
+  {
+    s_frac = s_frac * 10 + digit;
+    s_frac_digits++;
+  }
+  s_has_digit = 1U;
+}
+
+/** 把已收的增益数字拼成 float，并按各增益的上限钳位 */
+static float CMD_GainValue(float limit)
+{
+  float v = (float)s_pending;
+  float scale = 1.0f;
+  uint8_t i;
+
+  for (i = 0U; i < s_frac_digits; i++) { scale *= 10.0f; }
+  v += (float)s_frac / scale;
+
+  if (s_negative != 0U) { v = -v; }
+
+  /* 不允许负增益（负 Kp 就是正反馈，直接飞车）与超限值 */
+  if (v < 0.0f)   { v = 0.0f; }
+  if (v > limit)  { v = limit; }
+  return v;
+}
+
 /** 执行一条已经收完的命令 */
 static void CMD_Execute(void)
 {
@@ -96,7 +143,19 @@ static void CMD_Execute(void)
       }
       break;
 
+    case CMD_ST_GAIN_NUM:
+      if (s_has_digit != 0U)
+      {
+        float limit = (s_gain_which == 0U) ? CMD_KP_MAX
+                    : (s_gain_which == 1U) ? CMD_KI_MAX : CMD_KD_MAX;
+        s_gain_req[s_gain_which] = CMD_GainValue(limit);
+        s_gain_mask |= (uint8_t)(1U << s_gain_which);
+        s_gain_valid = 1U;
+      }
+      break;
+
     case CMD_ST_IDLE:
+    case CMD_ST_GAIN_FLAG:              /* K 后面没跟 P/I/D → 作废 */
     default:
       break;                          /* 单字母指令在 CMD_FeedByte 里已经处理 */
   }
@@ -119,6 +178,12 @@ void CMD_Reset(void)
   s_stop_req          = 0U;
   s_status_req        = 0U;
   s_calib_toggle_req  = 0U;
+  s_gain_which        = 0U;
+  s_frac              = 0;
+  s_frac_digits       = 0U;
+  s_has_dot           = 0U;
+  s_gain_valid        = 0U;
+  s_gain_mask         = 0U;
   s_autostep_toggle_req = 0U;
   s_autostep          = CMD_AUTOSTEP_DEFAULT;
   s_vofa              = CMD_VOFA_DEFAULT;
@@ -157,12 +222,15 @@ void CMD_FeedByte(char c)
   if ((c == '\n') || (c == '\r'))
   {
     CMD_Execute();
-    s_state     = CMD_ST_IDLE;
-    s_pending   = 0;
-    s_negative  = 0U;
-    s_has_digit = 0U;
-    s_line_len  = 0U;
-    s_drop_line = 0U;
+    s_state       = CMD_ST_IDLE;
+    s_pending     = 0;
+    s_negative    = 0U;
+    s_has_digit   = 0U;
+    s_line_len    = 0U;
+    s_drop_line   = 0U;
+    s_frac        = 0;
+    s_frac_digits = 0U;
+    s_has_dot     = 0U;
     return;
   }
 
@@ -188,6 +256,40 @@ void CMD_FeedByte(char c)
       return;
     }
     /* 数字里混进别的字符 → 整行作废 */
+    s_drop_line = 1U;
+    return;
+  }
+
+  /* ---- 收完 K，等 P / I / D ---- */
+  if (s_state == CMD_ST_GAIN_FLAG)
+  {
+    if ((c == 'P') || (c == 'p'))      { s_gain_which = 0U; }
+    else if ((c == 'I') || (c == 'i')) { s_gain_which = 1U; }
+    else if ((c == 'D') || (c == 'd')) { s_gain_which = 2U; }
+    else { s_drop_line = 1U; return; }
+
+    s_state = CMD_ST_GAIN_NUM;
+    return;
+  }
+
+  /* ---- 正在收增益值（支持小数）---- */
+  if (s_state == CMD_ST_GAIN_NUM)
+  {
+    if ((c >= '0') && (c <= '9'))
+    {
+      if (s_drop_line == 0U) { CMD_AccumulateGainDigit(c); }
+      return;
+    }
+    if ((c == '.') && (s_has_dot == 0U))
+    {
+      s_has_dot = 1U;                 /* 第二个小数点会被判废 */
+      return;
+    }
+    if ((c == '-') && (s_has_digit == 0U) && (s_has_dot == 0U))
+    {
+      s_negative = 1U;
+      return;
+    }
     s_drop_line = 1U;
     return;
   }
@@ -236,6 +338,12 @@ void CMD_FeedByte(char c)
     return;
   }
 
+  if ((c == 'K') || (c == 'k'))
+  {
+    s_state = CMD_ST_GAIN_FLAG;        /* 后面紧跟 P / I / D */
+    return;
+  }
+
   /* 其它字符：忽略（空格、\t、杂字符都不算错） */
 }
 
@@ -267,6 +375,22 @@ uint8_t CMD_TakeCalibToggle(void)
 {
   uint8_t v = s_calib_toggle_req;
   s_calib_toggle_req = 0U;
+  return v;
+}
+
+uint8_t CMD_TakeGains(float *kp, float *ki, float *kd)
+{
+  uint8_t v = s_gain_valid;
+
+  if (v != 0U)
+  {
+    /* 只回写被改过的字段：没收到 KI 命令时就不能动 ki */
+    if ((kp != 0) && ((s_gain_mask & 0x01U) != 0U)) { *kp = s_gain_req[0]; }
+    if ((ki != 0) && ((s_gain_mask & 0x02U) != 0U)) { *ki = s_gain_req[1]; }
+    if ((kd != 0) && ((s_gain_mask & 0x04U) != 0U)) { *kd = s_gain_req[2]; }
+    s_gain_valid = 0U;
+    s_gain_mask  = 0U;
+  }
   return v;
 }
 

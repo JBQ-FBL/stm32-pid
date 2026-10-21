@@ -132,7 +132,43 @@ int main(void)
   CHECK(CMD_GetTargetRpm() == 200, "停顿不足 500 ms 时继续拼行，得到 200（实际 %d）",
         (int)CMD_GetTargetRpm());
 
-  printf("[11] 复位\n");
+  printf("[11] 实时增益 KP / KI / KD（VOFA+ 滑块）\n");
+  CMD_Reset();
+  {
+    float kp = 0.0f, ki = 0.0f, kd = 0.0f;
+
+    feed("KP12.5\n");
+    CHECK(CMD_TakeGains(&kp, &ki, &kd) == 1U, "KP 置位增益请求");
+    CHECK(kp > 12.49f && kp < 12.51f, "KP12.5 解析为 12.5（实际 %.3f）", kp);
+    CHECK(CMD_TakeGains(&kp, &ki, &kd) == 0U, "读后清零");
+
+    feed("ki3\n");                              /* 小写、整数 */
+    CHECK(CMD_TakeGains(&kp, &ki, &kd) == 1U && ki > 2.99f && ki < 3.01f,
+          "ki3 小写也收（实际 %.3f）", ki);
+
+    feed("KD0.05\n");                           /* 小数前导零 */
+    CHECK(CMD_TakeGains(&kp, &ki, &kd) == 1U && kd > 0.049f && kd < 0.051f,
+          "KD0.05 解析为 0.05（实际 %.4f）", kd);
+
+    feed("KP999\n");                            /* 超限 */
+    CHECK(CMD_TakeGains(&kp, &ki, &kd) == 1U && kp <= CMD_KP_MAX + 0.01f,
+          "KP999 被钳到上限 %.0f（实际 %.1f）", CMD_KP_MAX, kp);
+
+    feed("KP-5\n");                             /* 负增益禁止 */
+    CHECK(CMD_TakeGains(&kp, &ki, &kd) == 1U && kp >= 0.0f,
+          "KP-5 被钳到 0（负 Kp = 正反馈，实际 %.1f）", kp);
+
+    feed("KP12.5.3\n");                         /* 两个小数点 → 整行作废 */
+    CHECK(CMD_TakeGains(&kp, &ki, &kd) == 0U, "KP12.5.3 作废（不会突然改增益）");
+
+    feed("KX5\n");                              /* K 后不是 P/I/D */
+    CHECK(CMD_TakeGains(&kp, &ki, &kd) == 0U, "KX5 作废");
+
+    feed("KP\n");                               /* 只有包头没有值 */
+    CHECK(CMD_TakeGains(&kp, &ki, &kd) == 0U, "KP 后面没数字 → 不改");
+  }
+
+  printf("[12] 复位\n");
   CMD_Reset();
   CHECK(CMD_GetTargetRpm() == 0 && CMD_GetAutoStep() == CMD_AUTOSTEP_DEFAULT, "Reset 后目标 0、自动阶跃回到默认值");
 
