@@ -5,7 +5,7 @@
   ******************************************************************************
   * @attention
   *
-  * **当前是闭环版（SPEED_LOOP_FEEDBACK=1）**，5 ms 一拍：
+  * **闭环：5 ms 一拍**
   *
   *     目标 ──►(+)──► PID ──►(+)──► 限幅 ──► 电机 ──► 编码器 ──┐
   *            ▲                                              │
@@ -17,11 +17,12 @@
   *     Kv=3.75‰/rpm（开环扫点标定）、Kp=10、Ki=5、Kd=0、限幅 1000‰
   *     上升 50.2ms / 静差 -0.1% / 扰动恢复 302ms
   *
-  * 三个运行模式（编译期开关）：
-  *     FEEDBACK=1          闭环（默认，接真电机）
-  *     FEEDBACK=0          开环，只有前馈：转多少全靠 Kv·target。
-  *                         串口 C 命令可再叠一层"标定模式"（PWM 强制 0，只数脉冲）
-  *     SIM_PLANT=1         一阶惯性模型冒充电机，无硬件时调 PID
+  * 两个运行时模式（串口命令切，不影响编译）：
+  *     正常     闭环控制
+  *     'C'      编码器标定：PWM 强制 0，只累计脉冲（不跑 PID）
+  *
+  * 历史上还有「纯开环」和「一阶惯性虚拟被控对象」两个编译期开关，
+  * 它们是无硬件时的调试手段；2026-10-21 真机调参完成后已删除（git 历史里还能找到）。
   *
   * ⚠️ 中断里只做四件事，禁止 printf / OLED / HAL_Delay。
   *
@@ -31,8 +32,7 @@
 #include "main.h"
 #include "tim.h"        /* htim1 / htim2 / htim3 */
 #include "motor.h"
-#include "motor_encoder.h"   /* 闭环才用得到；但 include 必须在 #if 外面，
-                              * 否则 SPEED_LOOP_FEEDBACK 一开就"隐式声明"报错 */
+#include "motor_encoder.h"   /* 编码器（TIM3）：测速 + 标定计数 */
 #include "pid.h"
 #include "cmd.h"
 #include "speed-loop.h"
@@ -86,13 +86,6 @@ static uint16_t s_nopulse_cnt;
 static uint16_t s_stall_cnt;
 static uint16_t s_dirbad_cnt;
 
-#if SPEED_LOOP_SIM_PLANT
-/* 一阶惯性模型：v' = (K·u − v)/T。K、T 先按估算值，实测后再改 */
-#define SIM_K_RPM_PER_PERMILLE   (333.0f / 900.0f)
-#define SIM_T_S                  0.08f
-static float s_sim_rpm;
-#endif
-
 /* ==========================================================================
  * 内部小工具
  * ========================================================================== */
@@ -135,7 +128,6 @@ void SpeedLoop_Init(void)
   s_tel.ki = g_pid_ki;
   s_tel.kd = g_pid_kd;
   s_tel.tick = 0U;
-  s_tel.feedback = (SPEED_LOOP_FEEDBACK != 0) ? 1U : 0U;
   s_tel.enc_total = 0;
   s_tel.enc_revs  = 0.0f;
   s_tel.calib     = 0U;
@@ -146,21 +138,15 @@ void SpeedLoop_Init(void)
     Error_Handler();
   }
 
-#if SPEED_LOOP_FEEDBACK
   /* 反馈：编码器句柄 = TIM3（PA6/PA7）*/
   if (MOTOR_ENC_Init(&htim3) != HAL_OK)
   {
     Error_Handler();
   }
-#endif
 
   PID_Init(&s_pid,
            SPEED_LOOP_KP, SPEED_LOOP_KI, SPEED_LOOP_KD,
            SPEED_LOOP_OUT_MAX, SPEED_LOOP_INTEG_MAX);
-
-#if SPEED_LOOP_SIM_PLANT
-  s_sim_rpm = 0.0f;
-#endif
 }
 
 void SpeedLoop_Start(void)
@@ -168,9 +154,7 @@ void SpeedLoop_Start(void)
   /* CubeMX 只把外设配好，计数器/PWM 不会自己跑 —— 这里才启动 */
   (void)HAL_TIM_PWM_Start(&htim1, MOTOR_PWM_TIM_CHANNEL);
 
-#if SPEED_LOOP_FEEDBACK
   (void)HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
-#endif
 
   (void)HAL_TIM_Base_Start_IT(&htim2);   /* 5 ms 心跳，从此每拍进 Tick */
 }
@@ -192,7 +176,6 @@ void SpeedLoop_Tick(void)
   /* 串口兜底：半截命令停太久就当打完（防止串口工具不给换行时整机"失联"）*/
   CMD_PollTimeout();
 
-#if SPEED_LOOP_FEEDBACK
   /* ---- 标定模式：不控制，只数脉冲（PWM 恒 0，手能自由转输出轴）---- */
   if (s_calib != 0U)
   {
@@ -212,7 +195,6 @@ void SpeedLoop_Tick(void)
     s_tel.tick         = s_tick;
     return;
   }
-#endif
 
   /* ---- 1) 目标：自动阶跃开着就本地生成，否则跟串口给的 ---- */
   if (CMD_GetAutoStep() != 0U)
@@ -222,14 +204,9 @@ void SpeedLoop_Tick(void)
   target = (float)CMD_GetTargetRpm();
 
   /* ---- 2) 实测转速 ---- */
-#if SPEED_LOOP_SIM_PLANT
-  meas = s_sim_rpm;                      /* 虚拟被控对象的上一次状态 */
-#elif SPEED_LOOP_FEEDBACK
   meas = MOTOR_ENC_UpdateSpeed(5U);      /* dt = 5 ms，和本中断同频 */
-#endif
 
-  /* ---- 3) PID 修正（开环时整段不需要）---- */
-#if SPEED_LOOP_FEEDBACK || SPEED_LOOP_SIM_PLANT
+  /* ---- 3) PID 修正 ---- */
   /* VOFA+ 滑块（串口 KP/KI/KD）：有新值就覆盖宏初值，下一拍生效。
    * 先拿当前值打底：TakeGains 只改被命令改过的那一个，不会把另两个刷成 0。*/
   {
@@ -264,7 +241,6 @@ void SpeedLoop_Tick(void)
     }
     else { s_dirbad_cnt = 0U; }
   }
-#endif
 
   /* ---- 4) 前馈 + PID → 限幅 → 输出 ---- */
   duty = (g_pid_kv * target) + pid_out;
@@ -279,14 +255,7 @@ void SpeedLoop_Tick(void)
   out = (int16_t)duty;
   (void)MOTOR_SetDuty(out);
 
-#if SPEED_LOOP_SIM_PLANT
-  /* 用"真正写出去的占空比"推进模型，下一拍读到的新转速才有意义 */
-  s_sim_rpm += (((SIM_K_RPM_PER_PERMILLE * (float)out) - s_sim_rpm)
-                * (SPEED_LOOP_DT_S / SIM_T_S));
-#endif
-
-#if SPEED_LOOP_FEEDBACK
-  /* ---- 保护（只在闭环时有意义）---- */
+  /* ---- 保护 ---- */
   if (s_fault == FAULT_NONE)
   {
     /* 无脉冲：要它转却不转 → 编码器没信号/线松 */
@@ -304,7 +273,6 @@ void SpeedLoop_Tick(void)
     }
     else { s_stall_cnt = 0U; }
   }
-#endif
 
   /* ---- 遥测（只写结构体，主循环自己去读）---- */
   s_tel.target_rpm   = target;

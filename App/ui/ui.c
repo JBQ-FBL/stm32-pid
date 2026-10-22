@@ -66,14 +66,7 @@ void UI_Refresh(const SpeedLoop_Telemetry_t *tel)
 
   OLED_Printf(1, 1, "TGT %4d rpm", (int)(tel->target_rpm + 0.5f));
 
-  if (tel->feedback != 0U)
-  {
-    OLED_Printf(2, 1, "ACT %4d rpm", (int)(tel->actual_rpm + 0.5f));
-  }
-  else
-  {
-    OLED_ShowString(2, 1, "ACT   --  open");   /* 开环：没有反馈，不编数据 */
-  }
+  OLED_Printf(2, 1, "ACT %4d rpm", (int)(tel->actual_rpm + 0.5f));
 
   OLED_Printf(3, 1, "OUT %4d pcm", (int)(tel->out_permille));
 
