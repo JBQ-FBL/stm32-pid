@@ -134,12 +134,18 @@ int main(void)
     if (CMD_TakeStatusRequest() != 0U)
     {
       SpeedLoop_GetTelemetry(&tel);
-      UART_Link_Printf("tgt=%d act=%d out=%d kp=%d ki=%d tick=%lu rx=%lu err=%lu\r\n",
+      /* 增益用 1 位小数打印：调参步长 0.5，用 (int)(x+0.5) 会把 12.5 显示成 13 */
+      int kp10 = (int)(tel.kp * 10.0f + 0.5f);
+      int ki10 = (int)(tel.ki * 10.0f + 0.5f);
+      int kd100 = (int)(tel.kd * 100.0f + 0.5f);
+
+      UART_Link_Printf("tgt=%d act=%d out=%d kp=%d.%d ki=%d.%d kd=%d.%02d tick=%lu rx=%lu err=%lu\r\n",
                        (int)(tel.target_rpm + 0.5f),
                        (int)(tel.actual_rpm + 0.5f),
                        (int)(tel.out_permille + 0.5f),
-                       (int)(tel.kp + 0.5f),
-                       (int)(tel.ki + 0.5f),
+                       kp10 / 10, kp10 % 10,
+                       ki10 / 10, ki10 % 10,
+                       kd100 / 100, kd100 % 100,
                        (unsigned long)tel.tick,
                        (unsigned long)UART_Link_RxCount(),
                        (unsigned long)UART_Link_ErrCount());

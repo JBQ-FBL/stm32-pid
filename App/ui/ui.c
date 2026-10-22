@@ -83,7 +83,14 @@ void UI_Refresh(const SpeedLoop_Telemetry_t *tel)
   }
   else
   {
-    OLED_Printf(4, 1, "KP%2d KI%3d",
-                (int)(tel->kp + 0.5f), (int)(tel->ki + 0.5f));
+    /* 三个增益都要看得见：Kp/Ki 留 1 位小数（调参步长 0.5），Kd 留 2 位（常用 0.05）*/
+    int kp10  = (int)(tel->kp * 10.0f + 0.5f);
+    int ki10  = (int)(tel->ki * 10.0f + 0.5f);
+    int kd100 = (int)(tel->kd * 100.0f + 0.5f);
+
+    OLED_Printf(4, 1, "K%d.%d I%d.%d D.%02d",
+                kp10 / 10, kp10 % 10,
+                ki10 / 10, ki10 % 10,
+                kd100 / 100, kd100 % 100);
   }
 }
