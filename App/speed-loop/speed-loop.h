@@ -51,7 +51,7 @@
 /* 方向已用 S50/S80 实测确认（act 为正且跟随 target），可以放开到 900‰。
  * 保留记录：首轮曾用 300‰，结果 S80 时输出顶格仍只能到 72.7 rpm（静差 9%）.*/
 #define SPEED_LOOP_OUT_MAX      1000.0f
-#define SPEED_LOOP_INTEG_MAX     40.0f     /* ≈ out_max/Ki = 900/30，留点余量 */
+#define SPEED_LOOP_INTEG_MAX     40.0f     /* I 项上限 = Ki×40 = 200‰（输出上限的 20%）*/
 #define SPEED_LOOP_DT_S          0.005f    /* 控制周期 5 ms */
 
 /* 自动阶跃：上电 2 s → STEP_RPM 保持 3 s → 回 0 → 循环（共 10 s）
