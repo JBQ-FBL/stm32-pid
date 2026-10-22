@@ -234,6 +234,10 @@ gcc -std=c11 -Wall -Wextra -I App/vofa tests/test_vofa.c App/vofa/vofa.c    -o /
 #define SPEED_LOOP_KD        0.0f   /* 速度环不用 D（编码器量化噪声）*/
 #define SPEED_LOOP_OUT_MAX 1000.0f  /* 满量程：50ms 靠的就是起步饱和 */
 #define SPEED_LOOP_INTEG_MAX 40.0f  /* I 项上限 = 5×40 = 200‰ */
+
+/* 编码器量化极限环抑制：稳态对 P 项加 5 rpm 死区（≈0.55 计数）*/
+#define SPEED_LOOP_DEADBAND_RPM      5.0f
+#define SPEED_LOOP_DEADBAND_DELAY_MS 300U   /* 目标变化后 300 ms 内不死区（保上升时间）*/
 ```
 
 改完 `Ctrl+Alt+F` 重烧，一轮 ≈ 10 秒。调参记录写 `../notes/tuning-log.md`。
