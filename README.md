@@ -228,8 +228,8 @@ gcc -std=c11 -Wall -Wextra -I App/vofa tests/test_vofa.c App/vofa/vofa.c    -o /
 `App/speed-loop/speed-loop.h` 顶部：
 
 ```c
-#define SPEED_LOOP_KV       3.75f   /* 前馈 ‰/rpm（开环扫点标定）*/
-#define SPEED_LOOP_KP       10.0f   /* 大信号饱和 → 50ms 上升的关键 */
+#define SPEED_LOOP_KV       4.15f   /* 前馈 ‰/rpm（2026-10-22 自动调参：3.75 → 4.15）*/
+#define SPEED_LOOP_KP       14.0f   /* 2026-10-22 自动调参：10 → 14（再大就超调/振荡）*/
 #define SPEED_LOOP_KI        5.0f
 #define SPEED_LOOP_KD        0.0f   /* 速度环不用 D（编码器量化噪声）*/
 #define SPEED_LOOP_OUT_MAX 1000.0f  /* 满量程：50ms 靠的就是起步饱和 */
@@ -237,6 +237,17 @@ gcc -std=c11 -Wall -Wextra -I App/vofa tests/test_vofa.c App/vofa/vofa.c    -o /
 ```
 
 改完 `Ctrl+Alt+F` 重烧，一轮 ≈ 10 秒。调参记录写 `../notes/tuning-log.md`。
+
+**不想手调了**（2026-10-22 起）—— `../tools/pid_autotune.py` 会自动搜参：
+它每次只改一个数、跑 80/200 rpm 两个阶跃、算四项指标打分，不改善就回滚，
+全程留档（逐帧 CSV + 每轮结论）。真机必须显式 `--live --i-own-the-rig`：
+
+```bash
+cd ~/stm32/PID
+python3 tools/pid_autotune.py --verify      --live --i-own-the-rig --rpm 80,200 --repeat 3  # 只测不搜
+python3 tools/pid_autotune.py               --live --i-own-the-rig --rpm 80,200 --trials 14 # 自动搜参
+python3 tools/pid_autotune.py --disturbance --live --i-own-the-rig --rpm 150               # 扰动恢复（需手压）
+```
 
 ---
 

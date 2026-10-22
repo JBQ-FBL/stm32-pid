@@ -58,9 +58,9 @@ static uint8_t     s_gain_which;     /* 0=Kp 1=Ki 2=Kd */
 static int32_t     s_frac;           /* 小数部分累加值 */
 static uint8_t     s_frac_digits;    /* 已收小数位数 */
 static uint8_t     s_has_dot;
-static float       s_gain_req[3];
+static float       s_gain_req[4];
 static uint8_t     s_gain_valid;     /* 1 = 有新值待取 */
-static uint8_t     s_gain_mask;      /* bit0=Kp bit1=Ki bit2=Kd：只回写被命令改过的那个
+static uint8_t     s_gain_mask;      /* bit0=Kp bit1=Ki bit2=Kd bit3=Kv：只回写被命令改过的那个
                                       * （没这个的话，发 KP20 会把 Ki/Kd 一起刷成 0 —— 实测踩过）*/
 
 /* ==========================================================================
@@ -147,7 +147,8 @@ static void CMD_Execute(void)
       if (s_has_digit != 0U)
       {
         float limit = (s_gain_which == 0U) ? CMD_KP_MAX
-                    : (s_gain_which == 1U) ? CMD_KI_MAX : CMD_KD_MAX;
+                    : (s_gain_which == 1U) ? CMD_KI_MAX
+                    : (s_gain_which == 2U) ? CMD_KD_MAX : CMD_KV_MAX;
         s_gain_req[s_gain_which] = CMD_GainValue(limit);
         s_gain_mask |= (uint8_t)(1U << s_gain_which);
         s_gain_valid = 1U;
@@ -260,12 +261,13 @@ void CMD_FeedByte(char c)
     return;
   }
 
-  /* ---- 收完 K，等 P / I / D ---- */
+  /* ---- 收完 K，等 P / I / D / V ---- */
   if (s_state == CMD_ST_GAIN_FLAG)
   {
     if ((c == 'P') || (c == 'p'))      { s_gain_which = 0U; }
     else if ((c == 'I') || (c == 'i')) { s_gain_which = 1U; }
     else if ((c == 'D') || (c == 'd')) { s_gain_which = 2U; }
+    else if ((c == 'V') || (c == 'v')) { s_gain_which = 3U; }   /* KV = 前馈 */
     else { s_drop_line = 1U; return; }
 
     s_state = CMD_ST_GAIN_NUM;
@@ -340,7 +342,7 @@ void CMD_FeedByte(char c)
 
   if ((c == 'K') || (c == 'k'))
   {
-    s_state = CMD_ST_GAIN_FLAG;        /* 后面紧跟 P / I / D */
+    s_state = CMD_ST_GAIN_FLAG;        /* 后面紧跟 P / I / D / V */
     return;
   }
 
@@ -378,7 +380,7 @@ uint8_t CMD_TakeCalibToggle(void)
   return v;
 }
 
-uint8_t CMD_TakeGains(float *kp, float *ki, float *kd)
+uint8_t CMD_TakeGains(float *kp, float *ki, float *kd, float *kv)
 {
   uint8_t v = s_gain_valid;
 
@@ -388,6 +390,7 @@ uint8_t CMD_TakeGains(float *kp, float *ki, float *kd)
     if ((kp != 0) && ((s_gain_mask & 0x01U) != 0U)) { *kp = s_gain_req[0]; }
     if ((ki != 0) && ((s_gain_mask & 0x02U) != 0U)) { *ki = s_gain_req[1]; }
     if ((kd != 0) && ((s_gain_mask & 0x04U) != 0U)) { *kd = s_gain_req[2]; }
+    if ((kv != 0) && ((s_gain_mask & 0x08U) != 0U)) { *kv = s_gain_req[3]; }
     s_gain_valid = 0U;
     s_gain_mask  = 0U;
   }

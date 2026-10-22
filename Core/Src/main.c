@@ -108,7 +108,7 @@ int main(void)
   Vofa_Init(UART_Link_Write);    /* VOFA 的输出接到串口 */
   SpeedLoop_Start();             /* PWM 起振 + TIM2 的 5 ms 心跳 */
 
-  UART_Link_Printf("\r\nready v6. S200/S-100 | C=calib | KP/KI/KD=n | V=vofa | A=autostep | X=stop | ?=status\r\n");
+  UART_Link_Printf("\r\nready v7. S200/S-100 | C=calib | KP/KI/KD/KV=n | V=vofa | A=autostep | X=stop | ?=status\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -138,17 +138,22 @@ int main(void)
       int kp10 = (int)(tel.kp * 10.0f + 0.5f);
       int ki10 = (int)(tel.ki * 10.0f + 0.5f);
       int kd100 = (int)(tel.kd * 100.0f + 0.5f);
+      int kv10 = (int)(tel.kv * 10.0f + 0.5f);
 
-      UART_Link_Printf("tgt=%d act=%d out=%d kp=%d.%d ki=%d.%d kd=%d.%02d tick=%lu rx=%lu err=%lu\r\n",
+      /* f = 故障码（0 正常），给上位机 / 自动调参判「还能不能继续跑」。
+       * 字段固定、以空格分隔，解析器（../tools/pid_autotune.py）按 key=value 取。*/
+      UART_Link_Printf("tgt=%d act=%d out=%d kp=%d.%d ki=%d.%d kd=%d.%02d kv=%d.%d tick=%lu rx=%lu err=%lu f=%u\r\n",
                        (int)(tel.target_rpm + 0.5f),
                        (int)(tel.actual_rpm + 0.5f),
                        (int)(tel.out_permille + 0.5f),
                        kp10 / 10, kp10 % 10,
                        ki10 / 10, ki10 % 10,
                        kd100 / 100, kd100 % 100,
+                       kv10 / 10, kv10 % 10,
                        (unsigned long)tel.tick,
                        (unsigned long)UART_Link_RxCount(),
-                       (unsigned long)UART_Link_ErrCount());
+                       (unsigned long)UART_Link_ErrCount(),
+                       (unsigned)SpeedLoop_FaultCode());
 
       /* 标定模式额外打一行（不打印浮点：用 ×10 的整数避开 newlib printf 浮点支持）*/
       if (tel.calib != 0U)

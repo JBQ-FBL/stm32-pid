@@ -42,9 +42,9 @@
   *     300‰ → 72.7 rpm   → K = 0.242 rpm/‰ → Kv = 4.13
   *     210‰ → 48.5 rpm   → K = 0.231 rpm/‰ → Kv = 4.33
   * 取中值 4.2（原估值 2.70 是按“900‰ ↔ 333rpm”算的，偏小 35%，导致前馈不足→超调）*/
-#define SPEED_LOOP_KV            3.75f       /* 开环扫描标定：300‰ -> 80 rpm */
+#define SPEED_LOOP_KV            4.15f       /* 2026-10-22 自动调参给出：3.75 → 4.15（前馈是提速主手段）*/
 
-#define SPEED_LOOP_KP           10.0f
+#define SPEED_LOOP_KP           14.0f       /* 2026-10-22 自动调参：10 → 14（再大就超调/振荡）*/
 #define SPEED_LOOP_KI            5.0f
 #define SPEED_LOOP_KD            0.0f
 
@@ -75,7 +75,8 @@ typedef struct
   float    target_rpm;      /* 目标 */
   float    actual_rpm;      /* 实测（编码器测的）*/
   float    out_permille;    /* 本拍实际写出去的占空比（含前馈 + PID）*/
-  float    kp, ki, kd;      /* 参数快照：OLED / 答辩能直接报 */
+  float    kp, ki, kd;
+  float    kv;              /* 前馈系数快照（‰/rpm）：自动调参会改它，必须可见 */      /* 参数快照：OLED / 答辩能直接报 */
   uint32_t tick;            /* 5 ms 计数（每秒 +200，可当"心跳"判据）*/
 
   /* ---- 编码器标定（'C' 模式）---- */
@@ -105,6 +106,9 @@ void SpeedLoop_GetTelemetry(SpeedLoop_Telemetry_t *out);
 
 /** 故障原因，NULL = 正常。触发后输出已被强制拉 0 */
 const char *SpeedLoop_Fault(void);
+
+/** 故障码（数字，给上位机 / 自动调参用）：0=NONE 1=ENC_DIR 2=NO_PULSE 3=STALL */
+uint8_t SpeedLoop_FaultCode(void);
 
 /** 清故障 + 清标定计数（相当于"复位控制器"，不用复位单片机）*/
 void SpeedLoop_ClearFault(void);

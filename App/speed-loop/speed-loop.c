@@ -213,12 +213,14 @@ void SpeedLoop_Tick(void)
     float kp_new = g_pid_kp;
     float ki_new = g_pid_ki;
     float kd_new = g_pid_kd;
+    float kv_new = g_pid_kv;
 
-    if (CMD_TakeGains(&kp_new, &ki_new, &kd_new) != 0U)
+    if (CMD_TakeGains(&kp_new, &ki_new, &kd_new, &kv_new) != 0U)
     {
       g_pid_kp = kp_new;
       g_pid_ki = ki_new;
       g_pid_kd = kd_new;
+      g_pid_kv = kv_new;
     }
   }
 
@@ -288,6 +290,7 @@ void SpeedLoop_Tick(void)
   s_tel.kp = g_pid_kp;
   s_tel.ki = g_pid_ki;
   s_tel.kd = g_pid_kd;
+  s_tel.kv = g_pid_kv;
 }
 
 /* ==========================================================================
@@ -331,6 +334,11 @@ const char *SpeedLoop_Fault(void)
 {
   uint8_t f = s_fault;
   return (f == FAULT_NONE) ? NULL : s_fault_name[f];
+}
+
+uint8_t SpeedLoop_FaultCode(void)
+{
+  return s_fault;
 }
 
 void SpeedLoop_ClearFault(void)
