@@ -86,6 +86,10 @@ static uint16_t s_nopulse_cnt;
 static uint16_t s_stall_cnt;
 static uint16_t s_dirbad_cnt;
 
+/* ---- 死区启用计时：目标变了就清零，稳态才启用（保证阶跃全程有 P）---- */
+static float    s_deadband_target;   /* 上一拍的目标，用来检测"目标变了吗" */
+static uint16_t s_settle_ticks;      /* 目标保持了多少拍 */
+
 /* ==========================================================================
  * 内部小工具
  * ========================================================================== */
@@ -114,7 +118,9 @@ static float autostep_value(uint32_t tick)
 void SpeedLoop_Init(void)
 {
   s_tick        = 0U;
-  s_fault       = FAULT_NONE;
+  s_fault          = FAULT_NONE;
+  s_settle_ticks   = 0U;
+  s_deadband_target = -1.0f;        /* 与任何目标都不等 → 下一拍重新计时 */
   s_calib       = 0U;
   s_enc_total   = 0;
   s_nopulse_cnt = 0U;
@@ -230,9 +236,27 @@ void SpeedLoop_Tick(void)
     PID_SetGains(&s_pid, g_pid_kp, g_pid_ki, g_pid_kd);
   }
 
+  /* ---- 死区：只有"目标稳定了一段时间"才启用 ----
+   * 阶跃后前 SPEED_LOOP_DEADBAND_DELAY_MS 内 p_deadband = 0 → 全速 P（上升时间不受影响）；
+   * 进入稳态后启用，把量化极限环压掉。目标一变立刻清零，重新计。*/
+  {
+    if (target != s_deadband_target)
+    {
+      s_deadband_target = target;
+      s_settle_ticks    = 0U;
+    }
+    else if (s_settle_ticks < (uint16_t)(SPEED_LOOP_DEADBAND_DELAY_MS / 5U + 1U))
+    {
+      s_settle_ticks++;
+    }
+  }
+
   if (s_fault == FAULT_NONE)
   {
-    pid_out = PID_Update(&s_pid, target, meas, SPEED_LOOP_DT_S);
+    float p_dead = (s_settle_ticks >= (uint16_t)(SPEED_LOOP_DEADBAND_DELAY_MS / 5U))
+                   ? SPEED_LOOP_DEADBAND_RPM : 0.0f;
+
+    pid_out = PID_UpdateEx(&s_pid, target, meas, SPEED_LOOP_DT_S, p_dead);
 
     /* 方向自检：给了正向目标、转速却持续为负 → 编码器 A/B 接反，PID 会变正反馈。
      * 必须持续 SPEED_LOOP_DIRBAD_MS 才判死：单拍的负值可能是量化噪声或回绕，
@@ -343,7 +367,9 @@ uint8_t SpeedLoop_FaultCode(void)
 
 void SpeedLoop_ClearFault(void)
 {
-  s_fault       = FAULT_NONE;
+  s_fault          = FAULT_NONE;
+  s_settle_ticks   = 0U;
+  s_deadband_target = -1.0f;        /* 与任何目标都不等 → 下一拍重新计时 */
   s_nopulse_cnt = 0U;
   s_stall_cnt   = 0U;
   s_dirbad_cnt  = 0U;

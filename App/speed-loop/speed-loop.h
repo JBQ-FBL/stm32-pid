@@ -54,6 +54,19 @@
 #define SPEED_LOOP_INTEG_MAX     40.0f     /* I 项上限 = Ki×40 = 200‰（输出上限的 20%）*/
 #define SPEED_LOOP_DT_S          0.005f    /* 控制周期 5 ms */
 
+/* ---- 编码器量化极限环抑制（2026-10-22 加，实测数据见 notes/tuning-log.md）----
+ *
+ * 现象：Kp=14、5 ms 窗口下 1 个编码器计数 = 9.09 rpm，一个计数的抖动 × Kp
+ *       = 127‰ 输出抖动。稳态实测 out 在 460~720‰ 之间逐拍摆、act 在 145/155 跳，
+ *       听得到嗡嗡声、VOFA 上是 10 rpm 粗的毛带。
+ * 做法：对 **P 项** 加死区（积分照常看真实误差，否则会留静差）。
+ *       `SPEED_LOOP_DEADBAND_RPM` = 5.0 rpm ≈ 0.55 个计数，正好覆盖一个计数的抖动。
+ * 为什么不会拖慢上升：阶跃后 `SPEED_LOOP_DEADBAND_DELAY_MS` 内死区为 0（全速 P），
+ *       实测上升时间 43 ms，远小于 300 ms，所以对 50 ms 指标没有影响。
+ * 想要完全关闭：把 DEADBAND_RPM 设 0。*/
+#define SPEED_LOOP_DEADBAND_RPM        5.0f
+#define SPEED_LOOP_DEADBAND_DELAY_MS   300U
+
 /* 自动阶跃：上电 2 s → STEP_RPM 保持 3 s → 回 0 → 循环（共 10 s）
  * 目的是让每条曲线在时间轴上对齐，叠图就能看出"哪次更快"。*/
 #define SPEED_LOOP_STEP_RPM      150

@@ -92,6 +92,11 @@ void PID_Reset(PID_t *p)
 
 float PID_Update(PID_t *p, float target, float meas, float dt)
 {
+  return PID_UpdateEx(p, target, meas, dt, 0.0f);
+}
+
+float PID_UpdateEx(PID_t *p, float target, float meas, float dt, float p_deadband)
+{
   float err;
   float p_term;
   float i_term;
@@ -137,7 +142,8 @@ float PID_Update(PID_t *p, float target, float meas, float dt)
   /* ---- 3) 三项叠加 ------------------------------------------------------
    * D 项带负号：转速在上涨（raw_d > 0）时提前减小输出，抑制超调。
    * ---------------------------------------------------------------------- */
-  p_term = p->kp * err;
+  /* 比例项死区：只压 P，不动积分（积分必须继续看真实误差，否则会留静差） */
+  p_term = (p_deadband > 0.0f && PID_Abs(err) <= p_deadband) ? 0.0f : (p->kp * err);
   i_term = p->ki * p->integral;
   d_term = -p->kd * p->d_filt;
 

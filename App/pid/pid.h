@@ -136,6 +136,18 @@ void PID_Reset(PID_t *p);
   */
 float PID_Update(PID_t *p, float target, float meas, float dt);
 
+/**
+  * @brief  带「比例项死区」的更新（速度环抑制编码器量化极限环用）
+  * @param  p_deadband  比例项死区（与误差同单位，rpm）。|e| ≤ 死区时 P 项输出 0
+  * @note   只影响 P：积分仍按真实误差累加（否则会留下静差），微分不受影响。
+  *         为什么要它：5 ms 窗口下 1 个编码器计数 = 9.09 rpm，Kp=14 时
+  *         一个计数的抖动就是 127‰ 的输出抖动 —— 稳态实测 out 在 460~720 之间摆，
+  *         act 在 145/155 之间逐拍跳（量化极限环）。加死区后 P 不再放大这个抖动。
+  *         ⚠️ 死区会降低"接近目标最后几 rpm"的速度，所以本工程只在【稳态】启用
+  *         （阶跃后 300 ms 内用 0），见 speed-loop.c 的 SPEED_LOOP_DEADBAND_DELAY。
+  */
+float PID_UpdateEx(PID_t *p, float target, float meas, float dt, float p_deadband);
+
 #ifdef __cplusplus
 }
 #endif
