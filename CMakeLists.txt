@@ -80,7 +80,9 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     MOTOR_PWM_TIM_CHANNEL=TIM_CHANNEL_1   # 本工程 PA8 = TIM1_CH1；库默认 TIM_CHANNEL_3
     MOTOR_ENC_PPR=11                      # 编码器电机轴每圈 11 个脉冲
     MOTOR_ENC_GEAR_RATIO=30.0f            # 减速比 1:30（库默认 1.0 = 直驱）
-    MOTOR_USE_STBY=0                      # HW-048 这块板没有 STBY 脚
+    MOTOR_USE_STBY=0                      # STBY 硬件拉高到 3V3，不用 GPIO 管
+                                          # （若改成 1，必须在 CubeMX 里把某脚 Label 设成 STBY，
+                                          #   否则 motor.h 会回退到 PA6 = 编码器 A 相，测速直接废）
 )
 
 # Remove wrong libob.a library dependency when using cpp files

@@ -108,7 +108,7 @@ int main(void)
   Vofa_Init(UART_Link_Write);    /* VOFA 的输出接到串口 */
   SpeedLoop_Start();             /* PWM 起振 + TIM2 的 5 ms 心跳 */
 
-  UART_Link_Printf("\r\nready v5 closed-loop. C=calib / S200 / S-100 / X / V(vofa) / A / ?\r\n");
+  UART_Link_Printf("\r\nready v6. S200/S-100 | C=calib | KP/KI/KD=n | V=vofa | A=autostep | X=stop | ?=status\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
