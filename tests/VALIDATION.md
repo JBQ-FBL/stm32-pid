@@ -68,3 +68,7 @@ python3 tests/hardware_acceptance.py --mode continuity --secs 60 --out build/pla
 python3 tests/hardware_acceptance.py --mode steps --i-own-the-rig --out build/plan1/acceptance/steps
 python3 tests/hardware_acceptance.py --mode functional --i-own-the-rig --out build/plan1/acceptance/functional
 ```
+
+## 后续更新：同日 PID 调参与运动验收
+
+电机反馈随后恢复，完成 80/150/200 rpm 重复阶跃、调参、固化和烧录后功能验证。当前增益已变为 Kp=10、Ki=7、Kd=0、Kv=3.75；上文“增益不变”指方案 1 初始实现阶段。运动验收的最新结果和仍待完成的扰动实验见 [`TUNING.md`](TUNING.md)。

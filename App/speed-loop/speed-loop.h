@@ -42,16 +42,16 @@
   *     300‰ → 72.7 rpm   → K = 0.242 rpm/‰ → Kv = 4.13
   *     210‰ → 48.5 rpm   → K = 0.231 rpm/‰ → Kv = 4.33
   * 取中值 4.2（原估值 2.70 是按“900‰ ↔ 333rpm”算的，偏小 35%，导致前馈不足→超调）*/
-#define SPEED_LOOP_KV            4.15f       /* 2026-10-22 自动调参给出：3.75 → 4.15（前馈是提速主手段）*/
+#define SPEED_LOOP_KV            3.75f       /* 2026-10-23 MA3 + plan1 live tuning; see tests/TUNING.md */
 
-#define SPEED_LOOP_KP           14.0f       /* 2026-10-22 自动调参：10 → 14（再大就超调/振荡）*/
-#define SPEED_LOOP_KI            5.0f
+#define SPEED_LOOP_KP           10.0f       /* lower low-speed overshoot while keeping 80 rpm rise <50 ms */
+#define SPEED_LOOP_KI            7.0f
 #define SPEED_LOOP_KD            0.0f
 
 /* 方向已用 S50/S80 实测确认（act 为正且跟随 target），可以放开到 900‰。
  * 保留记录：首轮曾用 300‰，结果 S80 时输出顶格仍只能到 72.7 rpm（静差 9%）.*/
 #define SPEED_LOOP_OUT_MAX      1000.0f
-#define SPEED_LOOP_INTEG_MAX     40.0f     /* I 项上限 = Ki×40 = 200‰（输出上限的 20%）*/
+#define SPEED_LOOP_INTEG_MAX     40.0f     /* I 项上限 = Ki×40 = 280‰（输出上限的 28%）*/
 #define SPEED_LOOP_DT_S          0.005f    /* 控制周期 5 ms */
 
 /* ---- 编码器量化极限环抑制（2026-10-22 加，实测数据见 notes/tuning-log.md）----

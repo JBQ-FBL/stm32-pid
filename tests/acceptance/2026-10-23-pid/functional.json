@@ -1,0 +1,293 @@
+{
+  "mode": "functional",
+  "port": "/dev/ttyUSB0",
+  "timestamp_basis": "existing SerialPlant receive-chunk interpolation; not MCU timestamps",
+  "tests": [
+    {
+      "name": "start_before_S20",
+      "pass": true,
+      "detail": {
+        "tgt": 80.0,
+        "act": 79.0,
+        "out": 305.0,
+        "kp": 10.0,
+        "ki": 7.0,
+        "kd": 0.0,
+        "kv": 3.8,
+        "tick": 18646.0,
+        "rx": 51.0,
+        "err": 0.0,
+        "f": 0.0,
+        "miss": 3.0
+      }
+    },
+    {
+      "name": "emergency_S20",
+      "pass": true,
+      "detail": {
+        "status": {
+          "tgt": 0.0,
+          "act": 3.0,
+          "out": 0.0,
+          "kp": 10.0,
+          "ki": 7.0,
+          "kd": 0.0,
+          "kv": 3.8,
+          "tick": 18767.0,
+          "rx": 57.0,
+          "err": 0.0,
+          "f": 0.0,
+          "miss": 3.0
+        },
+        "first_zero_frame_receive_ms": 2.5150928013317753
+      }
+    },
+    {
+      "name": "stop_latch_S20",
+      "pass": true,
+      "detail": {
+        "tgt": 0.0,
+        "act": 0.0,
+        "out": 0.0,
+        "kp": 10.0,
+        "ki": 7.0,
+        "kd": 0.0,
+        "kv": 3.8,
+        "tick": 18818.0,
+        "rx": 62.0,
+        "err": 0.0,
+        "f": 0.0,
+        "miss": 5.0
+      }
+    },
+    {
+      "name": "start_before_S12!",
+      "pass": true,
+      "detail": {
+        "tgt": 80.0,
+        "act": 82.0,
+        "out": 303.0,
+        "kp": 10.0,
+        "ki": 7.0,
+        "kd": 0.0,
+        "kv": 3.8,
+        "tick": 18949.0,
+        "rx": 67.0,
+        "err": 0.0,
+        "f": 0.0,
+        "miss": 5.0
+      }
+    },
+    {
+      "name": "emergency_S12!",
+      "pass": true,
+      "detail": {
+        "status": {
+          "tgt": 0.0,
+          "act": 0.0,
+          "out": 0.0,
+          "kp": 10.0,
+          "ki": 7.0,
+          "kd": 0.0,
+          "kv": 3.8,
+          "tick": 19070.0,
+          "rx": 75.0,
+          "err": 0.0,
+          "f": 0.0,
+          "miss": 6.0
+        },
+        "first_zero_frame_receive_ms": 2.5157130003208295
+      }
+    },
+    {
+      "name": "stop_latch_S12!",
+      "pass": true,
+      "detail": {
+        "tgt": 0.0,
+        "act": 0.0,
+        "out": 0.0,
+        "kp": 10.0,
+        "ki": 7.0,
+        "kd": 0.0,
+        "kv": 3.8,
+        "tick": 19121.0,
+        "rx": 79.0,
+        "err": 0.0,
+        "f": 0.0,
+        "miss": 7.0
+      }
+    },
+    {
+      "name": "start_before_S123456789012345678901234567890",
+      "pass": true,
+      "detail": {
+        "tgt": 80.0,
+        "act": 82.0,
+        "out": 305.0,
+        "kp": 10.0,
+        "ki": 7.0,
+        "kd": 0.0,
+        "kv": 3.8,
+        "tick": 19252.0,
+        "rx": 85.0,
+        "err": 0.0,
+        "f": 0.0,
+        "miss": 7.0
+      }
+    },
+    {
+      "name": "emergency_S123456789012345678901234567890",
+      "pass": true,
+      "detail": {
+        "status": {
+          "tgt": 0.0,
+          "act": 0.0,
+          "out": 0.0,
+          "kp": 10.0,
+          "ki": 7.0,
+          "kd": 0.0,
+          "kv": 3.8,
+          "tick": 19373.0,
+          "rx": 120.0,
+          "err": 0.0,
+          "f": 0.0,
+          "miss": 8.0
+        },
+        "first_zero_frame_receive_ms": 2.5219248000212247
+      }
+    },
+    {
+      "name": "stop_latch_S123456789012345678901234567890",
+      "pass": true,
+      "detail": {
+        "tgt": 0.0,
+        "act": 0.0,
+        "out": 0.0,
+        "kp": 10.0,
+        "ki": 7.0,
+        "kd": 0.0,
+        "kv": 3.8,
+        "tick": 19424.0,
+        "rx": 124.0,
+        "err": 0.0,
+        "f": 0.0,
+        "miss": 10.0
+      }
+    },
+    {
+      "name": "normal_reverse",
+      "pass": true,
+      "detail": {
+        "tgt": -80.0,
+        "act": -79.0,
+        "out": -295.0,
+        "kp": 10.0,
+        "ki": 7.0,
+        "kd": 0.0,
+        "kv": 3.8,
+        "tick": 19756.0,
+        "rx": 135.0,
+        "err": 0.0,
+        "f": 0.0,
+        "miss": 10.0
+      }
+    },
+    {
+      "name": "relative_autostep",
+      "pass": true,
+      "detail": {
+        "first_150_s": 2.007998526099982,
+        "first_return_zero_s": 5.004841831350859
+      }
+    },
+    {
+      "name": "autostep_off_stops",
+      "pass": true,
+      "detail": {
+        "tgt": 0.0,
+        "act": 0.0,
+        "out": 0.0,
+        "kp": 10.0,
+        "ki": 7.0,
+        "kd": 0.0,
+        "kv": 3.8,
+        "tick": 21158.0,
+        "rx": 143.0,
+        "err": 0.0,
+        "f": 0.0,
+        "miss": 11.0
+      }
+    },
+    {
+      "name": "calibration_entry_stops",
+      "pass": true,
+      "detail": {
+        "tgt": 0.0,
+        "act": 0.0,
+        "out": 0.0,
+        "kp": 10.0,
+        "ki": 7.0,
+        "kd": 0.0,
+        "kv": 3.8,
+        "tick": 21370.0,
+        "rx": 152.0,
+        "err": 0.0,
+        "f": 0.0,
+        "miss": 12.0,
+        "enc": 347.0,
+        "revx10": 2.0
+      }
+    },
+    {
+      "name": "calibration_exit_stays_stopped",
+      "pass": true,
+      "detail": {
+        "tgt": 0.0,
+        "act": 0.0,
+        "out": 0.0,
+        "kp": 10.0,
+        "ki": 7.0,
+        "kd": 0.0,
+        "kv": 3.8,
+        "tick": 21481.0,
+        "rx": 156.0,
+        "err": 0.0,
+        "f": 0.0,
+        "miss": 13.0
+      }
+    },
+    {
+      "name": "explicit_restart",
+      "pass": true,
+      "detail": {
+        "tgt": 80.0,
+        "act": 85.0,
+        "out": 304.0,
+        "kp": 10.0,
+        "ki": 7.0,
+        "kd": 0.0,
+        "kv": 3.8,
+        "tick": 21591.0,
+        "rx": 161.0,
+        "err": 0.0,
+        "f": 0.0,
+        "miss": 14.0
+      }
+    }
+  ],
+  "pass": true,
+  "final_status": {
+    "tgt": 0.0,
+    "act": 9.0,
+    "out": 0.0,
+    "kp": 10.0,
+    "ki": 7.0,
+    "kd": 0.0,
+    "kv": 3.8,
+    "tick": 21682.0,
+    "rx": 168.0,
+    "err": 0.0,
+    "f": 0.0,
+    "miss": 15.0
+  }
+}

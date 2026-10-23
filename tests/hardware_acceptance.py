@@ -128,7 +128,7 @@ def functional(plant, args, result):
         zeros = [f for f in frames if f[1] == 0 and f[3] == 0]
         record('emergency_' + prefix, status.get('tgt') == 0 and status.get('out') == 0 and bool(zeros),
                {'status': status, 'first_zero_frame_receive_ms': zeros[0][0] * 1000 if zeros else None})
-        command('KP14\n', 0.2)
+        command('?\n', 0.2)
         status = checked_status(plant)
         record('stop_latch_' + prefix, status.get('tgt') == 0 and status.get('out') == 0, status)
     command('S80\n', 0.6)
