@@ -25,6 +25,9 @@ Drivers/
 .settings/
 .clangd
 
+# pi 的项目级 skill（真源在 ../.pi/skills，这里只是一个软链）
+.pi/
+
 # 备份与编辑器临时文件
 *.bak.*
 *.orig
