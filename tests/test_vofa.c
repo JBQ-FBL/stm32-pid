@@ -62,6 +62,22 @@ int main(void)
   Vofa_Send3(0.0f, -0.0f, 0.0f);
   check(g_len == 16U && g_buf[15] == 0x7F, "值为 0 时帧尾不受影响");
 
+  Vofa_Init(capture); g_calls = 0;
+  Vofa_Poll(100, 0, 1, 2, 3);
+  Vofa_Poll(200, 1, 1, 2, 3);
+  Vofa_Poll(200, 1, 9, 9, 9);
+  check(g_calls == 1 && Vofa_MissedTicks() == 0, "enable sends latest once; same tick does not duplicate");
+  Vofa_Poll(201, 1, 4, 5, 6);
+  check(g_calls == 2 && Vofa_MissedTicks() == 0, "consecutive control ticks send one frame each");
+  Vofa_Poll(205, 1, 7, 8, 9);
+  memcpy(out, g_buf, sizeof(out));
+  check(g_calls == 3 && Vofa_MissedTicks() == 3 && out[0] == 7, "gap counts missing ticks and sends latest without replay");
+  Vofa_Poll(206, 0, 0, 0, 0); Vofa_Poll(300, 1, 1, 2, 3);
+  check(g_calls == 4 && Vofa_MissedTicks() == 3, "disabled interval is excluded from missed ticks");
+  Vofa_Init(capture); g_calls = 0;
+  Vofa_Poll(UINT32_MAX, 1, 0, 0, 0); Vofa_Poll(0, 1, 0, 0, 0);
+  check(g_calls == 2 && Vofa_MissedTicks() == 0, "tick wrap is handled without false gap");
+
   printf("=== 结果：%s ===\n", g_fail == 0 ? "全部通过" : "有失败");
   return g_fail == 0 ? 0 : 1;
 }

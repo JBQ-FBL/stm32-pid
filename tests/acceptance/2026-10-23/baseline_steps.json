@@ -1,0 +1,33 @@
+{
+  "mode": "steps",
+  "port": "/dev/ttyUSB0",
+  "timestamp_basis": "existing SerialPlant receive-chunk interpolation; not MCU timestamps",
+  "initial_status": {
+    "tgt": 0.0,
+    "act": 0.0,
+    "out": 0.0,
+    "kp": 14.0,
+    "ki": 5.0,
+    "kd": 0.0,
+    "kv": 4.2,
+    "tick": 138070.0,
+    "rx": 20.0,
+    "err": 0.0,
+    "f": 0.0
+  },
+  "trials": [],
+  "error": "TrialAbort: \u56fa\u4ef6\u6545\u969c\u7801 f=2.0\uff081=ENC_DIR 2=NO_PULSE 3=STALL\uff09",
+  "final_status": {
+    "tgt": 0.0,
+    "act": 0.0,
+    "out": 0.0,
+    "kp": 14.0,
+    "ki": 5.0,
+    "kd": 0.0,
+    "kv": 4.2,
+    "tick": 139289.0,
+    "rx": 36.0,
+    "err": 0.0,
+    "f": 0.0
+  }
+}

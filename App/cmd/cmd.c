@@ -4,7 +4,7 @@
   * @author  niko（需求） / pi coding agent（实现）
   * @version V1.0.0
   * @date    2026-10-20
-  * @brief   串口文本命令解析（整数 + 单字母指令，无浮点、无 sscanf）
+  * @brief   串口文本命令解析（整数转速 + 小数增益 + 单字母指令，无 sscanf）
   ******************************************************************************
   * @attention
   *
@@ -45,6 +45,7 @@ static uint8_t     s_line_len;       /* 本行已收字符数（防超长） */
 static uint8_t     s_drop_line;      /* 1 = 本行已判废，丢弃到行尾 */
 static uint16_t    s_idle_ticks;     /* 半截命令已经停了多少个 5 ms */
 
+static uint8_t     s_target_req;
 static uint8_t     s_stop_req;
 static uint8_t     s_status_req;
 static uint8_t     s_calib_toggle_req;
@@ -139,6 +140,8 @@ static void CMD_Execute(void)
       {
         int32_t value = (s_negative != 0U) ? -s_pending : s_pending;
         s_target_rpm = CMD_ClampTarget(value);
+        s_target_req = 1U;
+        s_autostep_toggle_req = 0U;
         s_autostep   = 0U;            /* 外部给速后，自动阶跃让位（否则会互相打架） */
       }
       break;
@@ -177,6 +180,7 @@ void CMD_Reset(void)
   s_drop_line         = 0U;
   s_idle_ticks        = 0U;
   s_stop_req          = 0U;
+  s_target_req        = 0U;
   s_status_req        = 0U;
   s_calib_toggle_req  = 0U;
   s_gain_which        = 0U;
@@ -212,12 +216,30 @@ void CMD_PollTimeout(void)
     s_line_len   = 0U;
     s_drop_line  = 0U;
     s_idle_ticks = 0U;
+    s_frac = 0;
+    s_frac_digits = s_has_dot = 0U;
   }
 #endif
 }
 
 void CMD_FeedByte(char c)
 {
+  /* X is reserved in every parser state, including malformed/overlong lines. */
+  if ((c == 'X') || (c == 'x'))
+  {
+    s_state = CMD_ST_IDLE;
+    s_pending = 0;
+    s_negative = s_has_digit = s_line_len = s_drop_line = 0U;
+    s_frac = 0;
+    s_frac_digits = s_has_dot = 0U;
+    s_idle_ticks = 0U;
+    s_target_rpm = 0;
+    s_target_req = 0U;
+    s_autostep = 0U;
+    s_autostep_toggle_req = s_calib_toggle_req = 0U;
+    s_stop_req = 1U;
+    return;
+  }
   s_idle_ticks = 0U;
   /* ---- 行尾：结算本行 ---- */
   if ((c == '\n') || (c == '\r'))
@@ -314,17 +336,10 @@ void CMD_FeedByte(char c)
     return;
   }
 
-  if ((c == 'X') || (c == 'x'))
-  {
-    s_target_rpm = 0;
-    s_autostep   = 0U;
-    s_stop_req   = 1U;
-    return;
-  }
-
   if ((c == 'A') || (c == 'a'))
   {
-    s_autostep_toggle_req = 1U;
+    s_autostep_toggle_req ^= 1U;
+    s_target_req = 0U;
     return;
   }
 
@@ -336,7 +351,7 @@ void CMD_FeedByte(char c)
 
   if ((c == 'C') || (c == 'c'))
   {
-    s_calib_toggle_req = 1U;
+    s_calib_toggle_req ^= 1U;
     return;
   }
 
@@ -357,6 +372,22 @@ int32_t CMD_GetTargetRpm(void)
 void CMD_SetTargetRpm(int32_t rpm)
 {
   s_target_rpm = CMD_ClampTarget(rpm);
+}
+
+void CMD_RequestTargetRpm(int32_t rpm)
+{
+  s_target_rpm = CMD_ClampTarget(rpm);
+  s_autostep = 0U;
+  s_autostep_toggle_req = 0U;
+  s_target_req = 1U;
+}
+
+uint8_t CMD_TakeTargetRequest(int32_t *rpm)
+{
+  uint8_t pending = s_target_req;
+  if (rpm != 0) { *rpm = s_target_rpm; }
+  s_target_req = 0U;
+  return pending;
 }
 
 uint8_t CMD_TakeStopRequest(void)

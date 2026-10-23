@@ -3,9 +3,9 @@
   * @file    test_pid.c
   * @brief   pid.c 的主机端单测（不需要单片机、不需要 HAL）
   ******************************************************************************
-  * 怎么跑（在 ~/stm32/PID 目录下）：
+  * 怎么跑（在本仓库根目录下）：
   *
-  *   gcc -std=c11 -Wall -Wextra -O2 -Isrc/pid src/pid/test_pid.c src/pid/pid.c \
+  *   gcc -std=c11 -Wall -Wextra -O2 -IApp/pid tests/test_pid.c App/pid/pid.c -lm \
   *       -o /tmp/test_pid && /tmp/test_pid
   *
   * 为什么要有它：控制器是纯数学，**没有硬件也能证明它是对的**。

@@ -50,7 +50,6 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static uint32_t s_t_vofa;   /* 上次发 VOFA 的时刻（ms） */
 static uint32_t s_t_ui;     /* 上次刷 OLED 的时刻（ms） */
 
 /* USER CODE END PV */
@@ -108,7 +107,10 @@ int main(void)
   Vofa_Init(UART_Link_Write);    /* VOFA 的输出接到串口 */
   SpeedLoop_Start();             /* PWM 起振 + TIM2 的 5 ms 心跳 */
 
-  UART_Link_Printf("\r\nready v7. S200/S-100 | C=calib | KP/KI/KD/KV=n | V=vofa | A=autostep | X=stop | ?=status\r\n");
+  if (CMD_GetVofa() == 0U)
+  {
+    UART_Link_Printf("ready. S200 | X=stop | A=step | C=calib | V=vofa | ?=status\r\n");
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -121,17 +123,18 @@ int main(void)
     SpeedLoop_Telemetry_t tel;
     uint32_t now = HAL_GetTick();
 
-    /* 急停请求（串口 X）：立刻断电，目标已被 cmd 清成 0。
-       ⚠️ 同时清故障计数：否则 ENC_DIR / NO_PULSE 一旦触发，就只能复位单片机才能恢复。
-       安全：cmd 里 X 已经把目标和自动阶跃都置 0，所以清完不会自己转起来。*/
-    if (CMD_TakeStopRequest() != 0U)
-    {
-      SpeedLoop_ClearFault();
-      UART_Link_Printf("STOP (fault cleared)\r\n");
-    }
+    /* Serialize only read/clear operations; never print inside a critical section. */
+    uint32_t irq_state = __get_PRIMASK();
+    __disable_irq();
+    uint8_t status_req = CMD_TakeStatusRequest();
+    uint8_t vofa_toggle = CMD_TakeVofaToggle();
+    if (vofa_toggle != 0U) { CMD_SetVofa(!CMD_GetVofa()); }
+    uint8_t vofa_on = CMD_GetVofa();
+    __set_PRIMASK(irq_state);
+    if ((vofa_toggle != 0U) && (vofa_on == 0U)) { UART_Link_Printf("VOFA OFF\r\n"); }
 
     /* '?' 状态查询 */
-    if (CMD_TakeStatusRequest() != 0U)
+    if (status_req != 0U)
     {
       SpeedLoop_GetTelemetry(&tel);
       /* 增益用 1 位小数打印：调参步长 0.5，用 (int)(x+0.5) 会把 12.5 显示成 13 */
@@ -142,10 +145,10 @@ int main(void)
 
       /* f = 故障码（0 正常），给上位机 / 自动调参判「还能不能继续跑」。
        * 字段固定、以空格分隔，解析器（../tools/pid_autotune.py）按 key=value 取。*/
-      UART_Link_Printf("tgt=%d act=%d out=%d kp=%d.%d ki=%d.%d kd=%d.%02d kv=%d.%d tick=%lu rx=%lu err=%lu f=%u\r\n",
-                       (int)(tel.target_rpm + 0.5f),
-                       (int)(tel.actual_rpm + 0.5f),
-                       (int)(tel.out_permille + 0.5f),
+      UART_Link_Printf("tgt=%d act=%d out=%d kp=%d.%d ki=%d.%d kd=%d.%02d kv=%d.%d tick=%lu rx=%lu err=%lu f=%u miss=%lu\r\n",
+                       (int)(tel.target_rpm + (tel.target_rpm >= 0 ? 0.5f : -0.5f)),
+                       (int)(tel.actual_rpm + (tel.actual_rpm >= 0 ? 0.5f : -0.5f)),
+                       (int)(tel.out_permille + (tel.out_permille >= 0 ? 0.5f : -0.5f)),
                        kp10 / 10, kp10 % 10,
                        ki10 / 10, ki10 % 10,
                        kd100 / 100, kd100 % 100,
@@ -153,7 +156,8 @@ int main(void)
                        (unsigned long)tel.tick,
                        (unsigned long)UART_Link_RxCount(),
                        (unsigned long)UART_Link_ErrCount(),
-                       (unsigned)SpeedLoop_FaultCode());
+                       (unsigned)SpeedLoop_FaultCode(),
+                       (unsigned long)Vofa_MissedTicks());
 
       /* 标定模式额外打一行（不打印浮点：用 ×10 的整数避开 newlib printf 浮点支持）*/
       if (tel.calib != 0U)
@@ -166,56 +170,33 @@ int main(void)
 
     SpeedLoop_GetTelemetry(&tel);
 
-    /* 目标一变就回显：终端里能立刻看到命令生效（以前 S 命令是"静默生效"）*/
+    /* Live VOFA keeps its three-channel format and never replays stale samples. */
+    Vofa_Poll(tel.tick, vofa_on, tel.target_rpm, tel.actual_rpm, tel.out_permille);
+
+    /* Text feedback is useful in terminal mode, but silent while streaming. */
     {
-      static int32_t s_last_tgt;
-      if ((int32_t)(tel.target_rpm + 0.5f) != s_last_tgt)
+      static int32_t last_target;
+      static uint8_t last_calib, last_fault;
+      uint8_t fault = SpeedLoop_FaultCode();
+      if (vofa_on == 0U)
       {
-        s_last_tgt = (int32_t)(tel.target_rpm + 0.5f);
-        UART_Link_Printf("TGT %d  OUT %d\r\n",
-                         (int)s_last_tgt,
-                         (int)(tel.out_permille + 0.5f));
+        if ((int32_t)tel.target_rpm != last_target)
+        {
+          UART_Link_Printf("TGT %d OUT %d\r\n", (int)tel.target_rpm, (int)tel.out_permille);
+        }
+        if (tel.calib != last_calib) { UART_Link_Printf("CALIB %s\r\n", tel.calib ? "ON" : "OFF"); }
+        if (fault != last_fault) { UART_Link_Printf("FAULT %u\r\n", (unsigned)fault); }
       }
+      last_target = (int32_t)tel.target_rpm;
+      last_calib = tel.calib;
+      last_fault = fault;
     }
-
-    /* `C` 命令：进/出编码器标定模式 */
-    if (CMD_TakeCalibToggle() != 0U)
-    {
-      uint8_t on = (SpeedLoop_GetCalib() != 0U) ? 0U : 1U;
-      SpeedLoop_SetCalib(on);
-      if (on != 0U)
-      {
-        UART_Link_Printf("CALIB ON  - 手转输出轴正好 10 圈，然后发 ? 或看 OLED\r\n");
-      }
-      else
-      {
-        UART_Link_Printf("CALIB OFF\r\n");
-      }
-    }
-
-    /* `V` 命令：开/关 VOFA 波形流（默认关，否则纯文本串口满屏二进制"乱码"）*/
-    if (CMD_TakeVofaToggle() != 0U)
-    {
-      CMD_SetVofa((CMD_GetVofa() != 0U) ? 0U : 1U);
-      UART_Link_Printf("VOFA %s\r\n", (CMD_GetVofa() != 0U) ? "ON" : "OFF");
-    }
-
-    /* VOFA 100 Hz（三条线：目标 / 实际 / 输出）—— 只在打开时才发 */
-    if ((CMD_GetVofa() != 0U) && ((now - s_t_vofa) >= 5U))   /* 200 Hz：提高上升时间测量分辨率 */
-    {
-      s_t_vofa = now;
-      Vofa_Send3(tel.target_rpm, tel.actual_rpm, tel.out_permille);
-    }
-
-    /* OLED 刷新间隔：软件 I²C 刷一帧要几十 ms，**会阻塞主循环**。
-     * 原来 100 ms 时，VOFA 的 100 Hz 被拖到实测 **6.6 Hz**（150 ms 才一个点），
-     * 而考核要求「上升时间 < 50 ms」—— 根本采不到上升沿。
-     * 调参期间用 1 Hz（VOFA 能跑到 90 Hz 左右）；只想看屏上数字时改回 100U。*/
     if ((now - s_t_ui) >= 1000U)
     {
       s_t_ui = now;
-      UI_Refresh(&tel);
+      UI_Refresh(&tel); /* Format only: pads each row, no I2C transaction. */
     }
+    UI_Task(tel.tick); /* One bounded display slice, after wave transmission. */
   }
   /* USER CODE END 3 */
 }
@@ -272,6 +253,7 @@ void Error_Handler(void)
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
+  MOTOR_EmergencyStop();
   while (1)
   {
   }

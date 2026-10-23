@@ -1,0 +1,24 @@
+{
+  "baseline": {
+    "frames": 9909,
+    "frames_per_second": 165.05216553244497,
+    "max_receive_gap_ms": 158.73797425047087,
+    "p99_receive_gap_ms": 16.728854332541232,
+    "gaps_over_30ms": 60
+  },
+  "plan1": {
+    "frames": 12007,
+    "frames_per_second": 200.0323619308895,
+    "max_receive_gap_ms": 6.18087912152987,
+    "p99_receive_gap_ms": 5.228958749285084,
+    "gaps_over_30ms": 0
+  },
+  "frame_rate_gain_percent": 21.193418629559456,
+  "max_receive_gap_reduction_percent": 96.10623787363122,
+  "firmware": "Debug ELF verified with OpenOCD",
+  "oled_single_span_us": 1052.569,
+  "physical_motion_acceptance": "BLOCKED: baseline S80 had measured speed 0 throughout and fault NO_PULSE; motor stopped; awaiting power/feedback confirmation",
+  "timestamp_limit": "Receive-chunk interpolation from existing SerialPlant; not MCU sampling timestamps or oscilloscope measurement.",
+  "comparison_limit": "Reconstructed baseline includes pre-existing MA3 filter changes, same as new firmware. Original on-board flash was backed up and differs from this controlled baseline.",
+  "scope": "60 s stationary telemetry comparison with OLED connected; not a motor speed improvement claim."
+}

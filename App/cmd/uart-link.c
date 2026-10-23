@@ -77,7 +77,7 @@ void UART_Link_Write(const uint8_t *buf, uint16_t len)
 
 void UART_Link_Printf(const char *fmt, ...)
 {
-  char    buf[96];
+  char    buf[160];
   int     n;
   va_list args;
 
@@ -117,7 +117,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
   }
 
   s_rx_count++;
-  CMD_FeedByte((char)s_rx_byte);                       /* 中断里只做状态机，不打印 */
+  /* TIM2 may preempt UART; make each parser transition indivisible. */
+  uint32_t irq_state = __get_PRIMASK();
+  __disable_irq();
+  CMD_FeedByte((char)s_rx_byte);
+  __set_PRIMASK(irq_state);                       /* 中断里只做状态机，不打印 */
 
   /* 重新武装：万一返回 HAL_BUSY（理论上现在不会了），再试一次 */
   if (HAL_UART_Receive_IT(s_uart, &s_rx_byte, 1U) != HAL_OK)

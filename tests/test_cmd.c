@@ -3,9 +3,9 @@
   * @file    test_cmd.c
   * @brief   cmd.c 的主机端单测（不需要单片机）
   ******************************************************************************
-  * 跑法（在 ~/stm32/PID 目录下）：
+  * 跑法（在本仓库根目录下）：
   *
-  *   gcc -std=c11 -Wall -Wextra -O2 -Isrc/cmd src/cmd/test_cmd.c src/cmd/cmd.c \
+  *   gcc -std=c11 -Wall -Wextra -O2 -IApp/cmd tests/test_cmd.c App/cmd/cmd.c \
   *       -o /tmp/test_cmd && /tmp/test_cmd
   ******************************************************************************
   */
@@ -66,7 +66,7 @@ int main(void)
   feed("200\n");
   CHECK(CMD_GetTargetRpm() == 100, "不带 S 的数字不生效（仍是 100，实际 %d）", (int)CMD_GetTargetRpm());
 
-  feed("S12x3\n");
+  feed("S12q3\n");
   CHECK(CMD_GetTargetRpm() == 100, "数字里混字母 → 整行作废（仍是 100，实际 %d）", (int)CMD_GetTargetRpm());
 
   feed("S\n");
@@ -185,6 +185,22 @@ int main(void)
     feed("KP\n");                               /* 只有包头没有值 */
     CHECK(CMD_TakeGains(&kp, &ki, &kd, &kv) == 0U, "KP 后面没数字 → 不改");
   }
+
+  printf("[extra] emergency parser boundaries and fresh gain state\n");
+  const char *prefixes[] = {"S20", "KP12.", "K", "S12!", "S123456789012345678901234567890"};
+  for (unsigned i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); i++)
+  {
+    CMD_Reset(); feed("S150\n"); feed(prefixes[i]); feed("X");
+    CHECK(CMD_GetTargetRpm() == 0 && CMD_TakeStopRequest(), "X stops from parser state %u", i);
+    int32_t rpm;
+    CHECK(!CMD_TakeTargetRequest(&rpm), "X cancels stale run request");
+    feed("S80\n"); CHECK(CMD_TakeTargetRequest(&rpm) && rpm == 80, "new S releases stop");
+  }
+  CMD_Reset(); feed("KP12.5");
+  for (unsigned i = 0; i < CMD_FLUSH_TIMEOUT_MS / 5U; i++) { CMD_PollTimeout(); }
+  float kp = 0, ki = 0;
+  CHECK(CMD_TakeGains(&kp, &ki, 0, 0) && kp == 12.5f, "timeout completes decimal gain");
+  feed("KI3\n"); CHECK(CMD_TakeGains(&kp, &ki, 0, 0) && ki == 3.0f, "timeout clears fractional parser state");
 
   printf("[12] 复位\n");
   CMD_Reset();

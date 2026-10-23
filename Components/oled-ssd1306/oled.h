@@ -128,6 +128,9 @@ static inline void OLED_GPIO_PortClockEnable(GPIO_TypeDef *port)
 /* 初始化。返回 0 = 屏应答正常；非 0 = 屏没应答（查接线 / 查上拉 / 换 OLED_I2C_ADDR） */
 uint8_t OLED_Init(void);
 
+/* Bounded page write: count 1..4, no page crossing; 0=ACK, 1=invalid/NACK. */
+uint8_t OLED_WriteSpan(uint8_t page, uint8_t x, const uint8_t *data, uint8_t count);
+
 /* 清屏（全黑） */
 void OLED_Clear(void);
 

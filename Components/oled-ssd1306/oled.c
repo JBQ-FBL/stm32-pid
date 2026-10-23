@@ -330,6 +330,41 @@ uint8_t OLED_Init(void)
   * @brief  清屏：8 页，每页写 128 个 0x00
   * @note   常量表放 flash（static const），不占 RAM
   */
+uint8_t OLED_WriteSpan(uint8_t page, uint8_t x, const uint8_t *data, uint8_t count)
+{
+  if ((page >= 8U) || (x >= 128U) || (data == NULL) ||
+      (count == 0U) || (count > 4U) || ((uint16_t)x + count > 128U))
+  {
+    return 1U;
+  }
+  /* One command transaction for all three cursor bytes. */
+  OLED_I2C_Start();
+  if (OLED_I2C_SendByte(OLED_I2C_ADDR) || OLED_I2C_SendByte(0x00U) ||
+      OLED_I2C_SendByte(0xB0U | page) ||
+      OLED_I2C_SendByte(0x10U | (x >> 4)) || OLED_I2C_SendByte(x & 0x0FU))
+  {
+    OLED_I2C_Stop();
+    return 1U;
+  }
+  OLED_I2C_Stop();
+  OLED_I2C_Start();
+  if (OLED_I2C_SendByte(OLED_I2C_ADDR) || OLED_I2C_SendByte(0x40U))
+  {
+    OLED_I2C_Stop();
+    return 1U;
+  }
+  for (uint8_t i = 0U; i < count; i++)
+  {
+    if (OLED_I2C_SendByte(data[i]) != 0U)
+    {
+      OLED_I2C_Stop();
+      return 1U;
+    }
+  }
+  OLED_I2C_Stop();
+  return 0U;
+}
+
 void OLED_Clear(void)
 {
 	static const uint8_t zeros[OLED_WIDTH] = {0};

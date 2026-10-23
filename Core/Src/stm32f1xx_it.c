@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "fault-report.h"
+#include "motor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -71,6 +72,8 @@ extern UART_HandleTypeDef huart1;
 void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
+  __disable_irq();
+  MOTOR_EmergencyStop();
 
   /* USER CODE END NonMaskableInt_IRQn 0 */
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
@@ -86,6 +89,8 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
+  __disable_irq();
+  MOTOR_EmergencyStop();
   /* 出错瞬间把现场打到串口（115200）：CFSR/HFSR/MMFAR/BFAR + 栈帧里的 PC/LR */
   Fault_Report(__get_MSP());
   /* USER CODE END HardFault_IRQn 0 */
@@ -102,6 +107,8 @@ void HardFault_Handler(void)
 void MemManage_Handler(void)
 {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
+  __disable_irq();
+  MOTOR_EmergencyStop();
 
   /* USER CODE END MemoryManagement_IRQn 0 */
   while (1)
@@ -117,6 +124,8 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
+  __disable_irq();
+  MOTOR_EmergencyStop();
 
   /* USER CODE END BusFault_IRQn 0 */
   while (1)
@@ -132,6 +141,8 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
   /* USER CODE BEGIN UsageFault_IRQn 0 */
+  __disable_irq();
+  MOTOR_EmergencyStop();
 
   /* USER CODE END UsageFault_IRQn 0 */
   while (1)

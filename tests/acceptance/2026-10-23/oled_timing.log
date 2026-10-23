@@ -1,0 +1,16 @@
+0x08006ea2 in UI_Task (tick=48147) at /home/niko/stm32/PID/Pid/App/ui/ui.c:73
+73	  if ((s_have_screen == 0U) || (tick == s_task_tick)) { return; }
+OLED_ACK_STATE=1
+HALTED_COUNTER_DELTA=0
+Hardware assisted breakpoint 1 at 0x8007df0: file /home/niko/stm32/PID/Pid/Components/oled-ssd1306/oled.c, line 335.
+
+Breakpoint 1, OLED_WriteSpan (page=0 '\000', x=0 '\000', data=0x8008888 <OLED_F8x16+928> "", count=4 '\004') at /home/niko/stm32/PID/Pid/Components/oled-ssd1306/oled.c:335
+335	  if ((page >= 8U) || (x >= 128U) || (data == NULL) ||
+Note: automatically using hardware breakpoints for read-only addresses.
+halted: PC: 0x08007df2
+0x08006f8a in UI_Task (tick=48148) at /home/niko/stm32/PID/Pid/App/ui/ui.c:94
+94	  if (OLED_WriteSpan(page, x, &OLED_F8x16[ch - ' '][s_part * 4U], 4U) != 0U)
+Value returned is $1 = 0 '\000'
+OLED_SPAN_CYCLES=75785 OLED_SPAN_US=1052.569
+OLED_SPAN_ACK_RESULT=0
+[Inferior 1 (Remote target) detached]

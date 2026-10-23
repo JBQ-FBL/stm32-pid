@@ -1,0 +1,39 @@
+{
+  "mode": "continuity",
+  "port": "/dev/ttyUSB0",
+  "timestamp_basis": "existing SerialPlant receive-chunk interpolation; not MCU timestamps",
+  "cadence": {
+    "frames": 9909,
+    "frames_per_second": 165.05216553244497,
+    "max_receive_gap_ms": 158.73797425047087,
+    "p99_receive_gap_ms": 16.728854332541232,
+    "gaps_over_30ms": 60
+  },
+  "status_after_capture": {
+    "tgt": 0.0,
+    "act": 0.0,
+    "out": 0.0,
+    "kp": 14.0,
+    "ki": 5.0,
+    "kd": 0.0,
+    "kv": 4.2,
+    "tick": 121691.0,
+    "rx": 6.0,
+    "err": 0.0,
+    "f": 0.0
+  },
+  "pass": false,
+  "final_status": {
+    "tgt": 0.0,
+    "act": 0.0,
+    "out": 0.0,
+    "kp": 14.0,
+    "ki": 5.0,
+    "kd": 0.0,
+    "kv": 4.2,
+    "tick": 121801.0,
+    "rx": 14.0,
+    "err": 0.0,
+    "f": 0.0
+  }
+}

@@ -67,7 +67,7 @@
 #define SPEED_LOOP_DEADBAND_RPM        5.0f
 #define SPEED_LOOP_DEADBAND_DELAY_MS   300U
 
-/* 自动阶跃：上电 2 s → STEP_RPM 保持 3 s → 回 0 → 循环（共 10 s）
+/* 自动阶跃：启用后 2 s → STEP_RPM 保持 3 s → 回 0 → 循环（共 10 s）
  * 目的是让每条曲线在时间轴上对齐，叠图就能看出"哪次更快"。*/
 #define SPEED_LOOP_STEP_RPM      150
 #define SPEED_LOOP_STEP_DELAY    400       /* 拍数，400×5 ms = 2 s */
@@ -77,6 +77,7 @@
 /* 保护参数（只有闭环时生效）*/
 #define SPEED_LOOP_NOPULSE_MS    200       /* 无脉冲：持续多久算异常 */
 #define SPEED_LOOP_STALL_MS      500       /* 堵转：持续多久算异常 */
+#define SPEED_LOOP_REVERSE_GRACE_MS 300U     /* normal direction reversal grace */
 #define SPEED_LOOP_DIRBAD_MS     100       /* 方向自检：必须持续这么久才判反（防单拍噪声误停）*/
 
 /* ==========================================================================
@@ -111,7 +112,7 @@ void SpeedLoop_Start(void);
 /** 5 ms 中断里唯一要调的函数（HAL_TIM_PeriodElapsedCallback 里）*/
 void SpeedLoop_Tick(void);
 
-/** 设目标（内部转调 CMD_SetTargetRpm，保证目标只有一个来源）*/
+/** 提交显式目标请求；下个控制周期应用，非零目标可解除停止锁存*/
 void SpeedLoop_SetTarget(float rpm);
 
 /** 取遥测快照（短临界区拷贝）。主循环用它刷 OLED / 发 VOFA */
@@ -123,7 +124,7 @@ const char *SpeedLoop_Fault(void);
 /** 故障码（数字，给上位机 / 自动调参用）：0=NONE 1=ENC_DIR 2=NO_PULSE 3=STALL */
 uint8_t SpeedLoop_FaultCode(void);
 
-/** 清故障 + 清标定计数（相当于"复位控制器"，不用复位单片机）*/
+/** 提交清故障并停止请求；下个 5 ms 控制周期应用，不自动恢复运行*/
 void SpeedLoop_ClearFault(void);
 
 /* ==========================================================================
@@ -137,7 +138,7 @@ extern float g_pid_ki;
 extern float g_pid_kd;
 extern float g_pid_kv;
 
-/** 进出标定模式：on!=0 时 PWM 恒 0，只累计编码器计数，清空之前的计数 */
+/** 提交标定模式请求，下个控制周期应用；进入/退出都停止并清零计数 */
 void    SpeedLoop_SetCalib(uint8_t on);
 uint8_t SpeedLoop_GetCalib(void);
 
