@@ -117,7 +117,22 @@ extern "C" {
 #define MOTOR_ENC_SPEED_LPF_ALPHA   1.0f
 #endif
 
-/* 换工程不要改上面 4 个宏的默认值（否则工程副本与库不一致，drv doctor 会报）。
+/** 测速滑动平均点数（1 = 关；3 = 15 ms 窗 @5 ms 采样）
+  *
+  * 为什么按「计数求和」而不是「把 rpm 再平均」：
+  *   求和 = 把测速窗口从 dt 拉长到 N·dt，量化台阶真的变细：
+  *     q = 12000 / (counts_per_rev · N · dt_ms)
+  *   1320 计数/圈、5 ms 时：N=1 → 9.09 rpm，N=3 → 3.03 rpm，N=5 → 1.82 rpm
+  *   若只把 rpm 做一阶低通，台阶仍是 9.09，只是抖动被抹平（分辨率没改善）。
+  *
+  * 代价只有群延迟： (N-1)/2 · dt  →  N=3 时 5 ms（交叉频率 4.6 Hz 处 -8.4°）。
+  * 判据：死区必须 ≥ 1 个量化台阶（q），否则死区等于没装。
+  */
+#ifndef MOTOR_ENC_MA_N
+#define MOTOR_ENC_MA_N              1U
+#endif
+
+/* 换工程不要改上面 5 个宏的默认值（否则工程副本与库不一致，drv doctor 会报）。
    在工程的 CMakeLists.txt 里覆盖，驱动文件保持与库逐字节一致：
      target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
          MOTOR_ENC_GEAR_RATIO=30.0f MOTOR_ENC_SPEED_LPF_ALPHA=0.5f) */
@@ -131,6 +146,10 @@ extern "C" {
 
 #if (MOTOR_ENC_DIR_INVERT != 0) && (MOTOR_ENC_DIR_INVERT != 1)
 #error "MOTOR_ENC_DIR_INVERT 只能是 0 或 1"
+#endif
+
+#if (MOTOR_ENC_MA_N < 1U) || (MOTOR_ENC_MA_N > 32U)
+#error "MOTOR_ENC_MA_N 必须在 1 ~ 32 之间"
 #endif
 
 /* ==========================================================================

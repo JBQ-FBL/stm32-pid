@@ -64,6 +64,17 @@ static uint8_t s_edges_per_cycle = 0U;
 /** 是否已经初始化成功 */
 static uint8_t s_initialized = 0U;
 
+#if (MOTOR_ENC_MA_N > 1U)
+/** 滑动平均：最近 N 个「计数差」（存原始计数，不存 rpm） */
+static int16_t s_ma_buf[MOTOR_ENC_MA_N];
+/** 环形写指针 */
+static uint8_t s_ma_idx = 0U;
+/** 窗口内已填的样本数（上电前 N-1 拍不能除以 N，否则读到偏低的转速） */
+static uint8_t s_ma_fill = 0U;
+/** 窗口内计数差之和（int32 防溢出：N=32、单拍 32767 也不超 2^31） */
+static int32_t s_ma_sum = 0;
+#endif
+
 static uint8_t MOTOR_ENC_DetectEdgesPerCycle(TIM_HandleTypeDef *htim_encoder);
 
 /* ==========================================================================
@@ -169,6 +180,16 @@ void MOTOR_ENC_Reset(void)
   s_last_counter = 0;
   s_total_count  = 0;
   s_speed_rpm    = 0.0f;
+
+#if (MOTOR_ENC_MA_N > 1U)
+  {
+    uint8_t i;
+    for (i = 0U; i < (uint8_t)MOTOR_ENC_MA_N; i++) { s_ma_buf[i] = 0; }
+    s_ma_idx  = 0U;
+    s_ma_fill = 0U;
+    s_ma_sum  = 0;
+  }
+#endif
 }
 
 /* ==========================================================================
@@ -237,7 +258,19 @@ float MOTOR_ENC_UpdateSpeed(uint32_t dt_ms)
 
   delta = MOTOR_ENC_ReadDelta();
 
+#if (MOTOR_ENC_MA_N > 1U)
+  /* ---- 滑动求和：把测速窗口从 dt 拉长到 N·dt，台阶降到 q/N ----
+   * 除数是 n（窗口里实际已有的样本数）而不是 N：上电前 N-1 拍不会读到偏低值。*/
+  s_ma_sum += (int32_t)delta - (int32_t)s_ma_buf[s_ma_idx];
+  s_ma_buf[s_ma_idx] = delta;
+  s_ma_idx = (uint8_t)((s_ma_idx + 1U) % MOTOR_ENC_MA_N);
+  if (s_ma_fill < (uint8_t)MOTOR_ENC_MA_N) { s_ma_fill++; }
+
+  rpm = (((float)s_ma_sum / (float)s_ma_fill) / s_counts_per_rev)
+        * (60000.0f / (float)dt_ms);
+#else
   rpm = ((float)delta / s_counts_per_rev) * (60000.0f / (float)dt_ms);
+#endif
 
   /* 一阶低通：alpha=1 时就是 rpm 本身（不滤波） */
   s_speed_rpm += MOTOR_ENC_SPEED_LPF_ALPHA * (rpm - s_speed_rpm);
